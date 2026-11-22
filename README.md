@@ -1,5 +1,7 @@
 # 家人自修室 · Adaptive Learning OS
 
+專案規劃與驗收：[ROADMAP](ROADMAP.md) · [架構](docs/ARCHITECTURE.md) · [驗收清冊](docs/ACCEPTANCE.md) · [安全界線](SECURITY.md) · [代理工作規則](AGENTS.md)
+
 繁體中文、無需 AI API 的自適應自修原型。**每位家人及每個科目都有獨立教材、作答、掌握證據與複習日期**。
 
 ## 立即使用

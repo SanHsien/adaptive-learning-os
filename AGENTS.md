@@ -1,0 +1,21 @@
+# 專案代理指引
+
+## 定位與工作方式
+
+- 私人 repo `SanHsien/adaptive-learning-os`；繁體中文溝通，保持最小可驗證改動。
+- 開工前看 `README.md`、`ROADMAP.md`、`SECURITY.md`、`docs/ARCHITECTURE.md`；後續工作以 `ROADMAP.md` 為單一待辦來源。
+- 不複製其他 repo 的整套治理機制；只採用有實際驗收用途的文件與檢查。遵守使用者全域 AGENTS 與 hooks。
+
+## 不可違反的資料界線
+
+- 所有教材、科目、作答、提示、匯入、匯出均必須明確綁定 `learnerId` 與 `subjectId`，操作前驗證科目歸屬；不得讓不同家人、不同科目的資料混入。
+- IndexedDB 的 scope 僅是邏輯隔離，**不得**宣稱有帳號級安全性。未建立伺服器端驗證之前，不得公開部署或拿真實敏感家人資料試用。
+- 任何接入第三方 AI 的流程必須明示將送出的資料與目的地，預設不自動傳送；不把教材、個資、憑證加入 repo、log 或測試 fixture。
+- 匯入必須驗證格式、大小、內容及 scope；失敗不能留下部分資料。資料模型變更需考慮舊版備份兼容。
+
+## 完工條件
+
+- 執行 `npm ci`、`npm test` 與所有 `src/*.js`、`tests/*.js` 的 `node --check`；依功能風險補必要負向測試。
+- 真實瀏覽器測試須與模擬測試分開回報，未驗證時不得寫成「已通過」。
+- 行為/介面變更同步更新 README、架構或驗收文件，完成工作時在同次 commit 更新 ROADMAP。
+- 僅 push 到 `SanHsien/adaptive-learning-os`；不建立對上游的 PR、不公開部署。
