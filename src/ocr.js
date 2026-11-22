@@ -25,8 +25,10 @@ async function downsample(file) {
   } finally { bitmap.close(); }
 }
 
-export async function recognizeImage(file) {
+export async function recognizeImage(file, signal) {
+  signal?.throwIfAborted();
   const processed = await downsample(file);
+  signal?.throwIfAborted();
   const createWorker = globalThis.Tesseract?.createWorker;
   if (typeof createWorker !== 'function') throw new Error('本機 OCR 引擎未載入');
   const base = new URL('../vendor/ocr/', import.meta.url);
@@ -36,11 +38,28 @@ export async function recognizeImage(file) {
     langPath: base.href.replace(/\/$/, ''),
     workerBlobURL: false
   });
+  // Cancellation during worker initialization must still dispose the worker.
+  let terminated = false;
+  const terminate = () => {
+    if (terminated) return Promise.resolve();
+    terminated = true;
+    return worker.terminate();
+  };
+  const onAbort = () => { void terminate().catch(() => {}); };
+  signal?.addEventListener('abort', onAbort, {once: true});
   try {
+    signal?.throwIfAborted();
     const result = await worker.recognize(processed);
+    signal?.throwIfAborted();
     const content = String(result.data?.text || '').trim();
     if (!content) throw new Error('OCR 未辨識到文字，原教材未變更；請改用人工輸入');
     if (content.length > MAX_MATERIAL_CHARS) throw new Error('OCR 內容超過十萬字元上限');
     return content;
-  } finally { await worker.terminate(); }
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+    await terminate();
+  }
 }

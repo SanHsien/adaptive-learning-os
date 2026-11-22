@@ -3,7 +3,8 @@ import { recognizeImage } from './ocr.js';
 
 const MAX_OCR_PAGES = 20;
 
-async function recognizePdfPage(page) {
+async function recognizePdfPage(page, signal) {
+  signal?.throwIfAborted();
   const viewport = page.getViewport({scale: Math.min(1.5, 2200 / Math.max(page.view[2] - page.view[0], page.view[3] - page.view[1]))});
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(viewport.width);
@@ -12,9 +13,21 @@ async function recognizePdfPage(page) {
   if (!context) throw new Error('PDF OCR 畫布初始化失敗');
   context.fillStyle = '#ffffff';
   context.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({canvasContext: context, viewport}).promise;
+  const render = page.render({canvasContext: context, viewport});
+  const onAbort = () => render.cancel();
+  signal?.addEventListener('abort', onAbort, {once: true});
+  try {
+    signal?.throwIfAborted();
+    await render.promise;
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
+  signal?.throwIfAborted();
   const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PDF 頁面影像產生失敗')), 'image/png'));
-  return recognizeImage(blob);
+  return recognizeImage(blob, signal);
 }
 
 const FORMATS = {
@@ -56,7 +69,8 @@ export async function validateImageFile(file) {
   return {name: file.name.slice(0, 180), type};
 }
 
-export async function parseMaterialFile(file) {
+export async function parseMaterialFile(file, signal) {
+  signal?.throwIfAborted();
   if (!file || typeof file.name !== 'string') throw new Error('請選擇教材檔案');
   const extension = file.name.toLowerCase().split('.').pop();
   const type = FORMATS[extension];
@@ -79,13 +93,17 @@ export async function parseMaterialFile(file) {
       let charCount = 0;
       let ocrPages = 0;
       for (let index = 1; index <= pdf.numPages; index++) {
+        signal?.throwIfAborted();
         const page = await pdf.getPage(index);
         const lines = (await page.getTextContent()).items.map(item => item.str || '');
         let text = lines.join(' ').trim();
         if (!text) {
           if (++ocrPages > MAX_OCR_PAGES) throw new Error('掃描 PDF OCR 上限為 20 頁，請拆分教材');
-          try { text = await recognizePdfPage(page); }
-          catch (error) { throw new Error(`第 ${index} 頁 OCR 失敗：${error.message}`); }
+          try { text = await recognizePdfPage(page, signal); }
+          catch (error) {
+            signal?.throwIfAborted();
+            throw new Error(`第 ${index} 頁 OCR 失敗：${error.message}`);
+          }
         }
         const pageText = `【第 ${index} 頁】\n${text}`;
         charCount += pageText.length;
@@ -99,6 +117,7 @@ export async function parseMaterialFile(file) {
     const result = await globalThis.mammoth.extractRawText({arrayBuffer: await file.arrayBuffer()});
     content = result.value;
   }
+  signal?.throwIfAborted();
   if (!content.trim() || (extension === 'pdf' && !content.replace(/【第 \d+ 頁】/g, '').trim())) throw new Error('未擷取到文字；掃描型 PDF／圖片須先 OCR，原教材未變更');
   validateMaterial(content);
   return {content, source: {name: file.name.slice(0, 180), type}};

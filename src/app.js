@@ -12,6 +12,12 @@ let importGeneration = 0;
 let imagePreviewUrl = null;
 let mediaPreviewUrl = null;
 let pendingImageFile = null;
+let activeImportController = null;
+
+function cancelImport() {
+  activeImportController?.abort();
+  activeImportController = null;
+}
 
 function clearImagePreview() {
   pendingImageFile = null;
@@ -36,7 +42,9 @@ function notify(message, isError = false) {
 }
 
 async function safe(action) {
-  try { await action(); } catch (err) { notify(err?.message || '操作失敗', true); }
+  try { await action(); } catch (err) {
+    if (err?.name !== 'AbortError') notify(err?.message || '操作失敗', true);
+  }
 }
 
 function setOptions(select, items, placeholder) {
@@ -67,6 +75,7 @@ async function refreshSubjects(selectId = subjectId) {
 
 async function refreshWorkspace() {
   importGeneration++;
+  cancelImport();
   clearImagePreview();
   clearMediaPreview();
   // The active pair is always captured before asynchronous reads.
@@ -156,10 +165,14 @@ $('materialForm').addEventListener('submit', event => { event.preventDefault(); 
 }); });
 
 $('materialFile').addEventListener('change', event => safe(async () => {
+  cancelImport();
   const file = event.target.files?.[0];
   if (!file) return;
+  const controller = new AbortController();
+  activeImportController = controller;
   const owner = learnerId, course = subjectId;
   const generation = ++importGeneration;
+  try {
   if (/\.(png|jpe?g|webp)$/i.test(file.name)) {
     const source = await validateImageFile(file);
     if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇圖片');
@@ -169,6 +182,7 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     $('imagePanel').hidden = false;
     pendingMaterialSource = source;
     pendingImageFile = file;
+    $('runOcr').disabled = false;
     $('material').value = '';
     $('materialOrigin').textContent = `圖片來源：${source.name}（請人工辨識並輸入文字，再按儲存教材）`;
     notify('圖片可按「本機 OCR 辨識」或手動輸入；確認內容後才儲存。');
@@ -189,7 +203,7 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     notify('影音檔案僅暫時播放，不會保存。請輸入逐字稿並確認儲存；尚未進行自動語音辨識。');
     return;
   }
-  const {content, source} = await parseMaterialFile(file);
+  const {content, source} = await parseMaterialFile(file, controller.signal);
   if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇檔案');
   pendingMaterialSource = source;
   clearImagePreview();
@@ -197,23 +211,32 @@ $('materialFile').addEventListener('change', event => safe(async () => {
   $('material').value = content;
   $('materialOrigin').textContent = `待確認檔案：${file.name}（按「儲存教材」才會覆蓋目前教材）`;
   notify('檔案內容已載入預覽；確認後請按儲存教材。');
+  } finally {
+    if (activeImportController === controller) activeImportController = null;
+  }
 }));
 
 $('runOcr').addEventListener('click', () => safe(async () => {
   if (!pendingImageFile) throw new Error('請先選擇圖片');
   const owner = learnerId, course = subjectId, generation = importGeneration;
   const file = pendingImageFile;
+  cancelImport();
+  const controller = new AbortController();
+  activeImportController = controller;
   $('runOcr').disabled = true;
   notify('正在本機辨識繁體中文；辨識結果須人工檢查。');
   try {
-    const text = await recognizeImage(file);
-    if (owner !== learnerId || course !== subjectId || generation !== importGeneration || file !== pendingImageFile) {
+    const text = await recognizeImage(file, controller.signal);
+    if (controller.signal.aborted || owner !== learnerId || course !== subjectId || generation !== importGeneration || file !== pendingImageFile) {
       throw new Error('學習空間或教材已切換，OCR 結果已捨棄');
     }
     $('material').value = text;
     $('materialOrigin').textContent = `OCR 待確認：${file.name}（請校對文字後按儲存）`;
     notify('OCR 完成，請檢查及修正文字，再按「儲存教材」。');
-  } finally { $('runOcr').disabled = false; }
+  } finally {
+    if (activeImportController === controller) activeImportController = null;
+    if (activeImportController === null && pendingImageFile === file) $('runOcr').disabled = false;
+  }
 }));
 
 $('material').addEventListener('input', () => {
