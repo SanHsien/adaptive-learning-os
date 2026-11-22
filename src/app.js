@@ -1,11 +1,13 @@
 import { normalizeName, reviewDue, evidenceLevel, tutorPrompt } from './core.js';
 import { listLearners, listSubjects, getLearner, getSubject, addLearner, addSubject, saveMaterial, listAttempts, addAttempt, exportScope, importIsolated } from './storage.js';
+import { parseMaterialFile } from './material-import.js';
 
 const $ = id => document.getElementById(id);
 let learnerId = '';
 let subjectId = '';
 let snapshot = [];
 let pendingMaterialSource = null;
+let importGeneration = 0;
 
 function notify(message, isError = false) {
   $('message').textContent = message;
@@ -43,6 +45,7 @@ async function refreshSubjects(selectId = subjectId) {
 }
 
 async function refreshWorkspace() {
+  importGeneration++;
   // The active pair is always captured before asynchronous reads.
   const requestedLearner = learnerId;
   const requestedSubject = subjectId;
@@ -125,13 +128,10 @@ $('materialFile').addEventListener('change', event => safe(async () => {
   const file = event.target.files?.[0];
   if (!file) return;
   const owner = learnerId, course = subjectId;
-  const extension = file.name.toLowerCase().split('.').pop();
-  const allowed = {txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', csv: 'text/csv'};
-  if (!allowed[extension] || file.size > 1024 * 1024) throw new Error('僅支援 1 MB 以下 TXT、Markdown 或 CSV 文字教材');
-  const content = await file.text();
-  if (content.length > 100000) throw new Error('教材超過十萬字元上限');
-  if (owner !== learnerId || course !== subjectId) throw new Error('學習空間已切換，請重新選擇檔案');
-  pendingMaterialSource = {name: file.name, type: allowed[extension]};
+  const generation = ++importGeneration;
+  const {content, source} = await parseMaterialFile(file);
+  if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇檔案');
+  pendingMaterialSource = source;
   $('material').value = content;
   $('materialOrigin').textContent = `待確認檔案：${file.name}（按「儲存教材」才會覆蓋目前教材）`;
   notify('檔案內容已載入預覽；確認後請按儲存教材。');

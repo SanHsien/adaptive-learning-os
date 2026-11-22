@@ -8,6 +8,8 @@
     "serve": "npx --yes http-server . -p 4173 -c-1"
   },
   "devDependencies": {
-    "fake-indexeddb": "^6.2.8"
+    "fake-indexeddb": "^6.2.8",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.2.108"
   }
 }
