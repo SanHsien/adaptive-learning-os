@@ -75,7 +75,7 @@ export function validateBackup(value) {
   if (value.subject.materialVersion !== undefined && (!Number.isInteger(value.subject.materialVersion) || value.subject.materialVersion < 0 || value.subject.materialVersion > 1000000)) throw new Error('教材版本無效');
   if (value.subject.materialSource != null) {
     const source = value.subject.materialSource;
-    if (typeof source !== 'object' || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 180 || !['text/plain', 'text/markdown', 'text/csv', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(source.type)) throw new Error('教材來源無效');
+    if (typeof source !== 'object' || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 180 || !['text/plain', 'text/markdown', 'text/csv', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/webp'].includes(source.type)) throw new Error('教材來源無效');
   }
   if (value.attempts.length > 10000) throw new Error('單次匯入紀錄不可超過 10,000 筆');
   for (const a of value.attempts) {

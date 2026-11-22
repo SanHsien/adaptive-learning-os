@@ -6,6 +6,23 @@ const FORMATS = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
 
+const IMAGE_TYPES = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'};
+
+export async function validateImageFile(file) {
+  const extension = file?.name?.toLowerCase().split('.').pop();
+  const type = IMAGE_TYPES[extension];
+  if (!type) throw new Error('圖片僅支援 PNG、JPEG、WebP');
+  if (!file.size || file.size > 8 * 1024 * 1024) throw new Error('圖片檔案上限為 8 MB，空檔不可匯入');
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const valid = type === 'image/png'
+    ? [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value)
+    : type === 'image/jpeg'
+      ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+      : String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
+  if (!valid) throw new Error('圖片格式與檔案內容不符，請選擇有效圖片');
+  return {name: file.name.slice(0, 180), type};
+}
+
 export async function parseMaterialFile(file) {
   if (!file || typeof file.name !== 'string') throw new Error('請選擇教材檔案');
   const extension = file.name.toLowerCase().split('.').pop();

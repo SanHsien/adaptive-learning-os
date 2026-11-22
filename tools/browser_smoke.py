@@ -5,6 +5,7 @@ Run: python tools/browser_smoke.py
 """
 
 import json
+import base64
 import io
 import zipfile
 from contextlib import contextmanager
@@ -118,6 +119,22 @@ def run():
                 page.locator('#materialForm button').click()
                 page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
                 assert name in page.locator('#materialOrigin').inner_text()
+            # Image preview requires manual text; raw image is not stored in the backup.
+            tiny_png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==')
+            page.locator('#materialFile').set_input_files({'name': 'diagram.png', 'mimeType': 'image/png', 'buffer': tiny_png})
+            page.get_by_text('圖片只供本次預覽', exact=False).wait_for()
+            assert page.locator('#imagePanel').is_visible()
+            assert page.locator('#material').input_value() == ''
+            page.locator('#material').fill('人工辨識：三角形')
+            page.locator('#materialForm button').click()
+            page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
+            assert 'diagram.png' in page.locator('#materialOrigin').inner_text()
+            assert page.locator('#imagePanel').is_hidden()
+            # Restore DOCX to test that invalid files do not replace existing content.
+            page.locator('#materialFile').set_input_files({'name': 'chapter.docx', 'mimeType': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'buffer': sample_docx()})
+            page.get_by_text('檔案內容已載入預覽', exact=False).wait_for()
+            page.locator('#materialForm button').click()
+            page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
             # Invalid files must not change the saved lesson or its source.
             original = page.locator('#material').input_value()
             for name, mime, payload in [

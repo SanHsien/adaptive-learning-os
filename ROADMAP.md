@@ -4,7 +4,7 @@
 
 ## 現況（2026-11-22）
 
-- v0.1：瀏覽器單機原型；家人 × 科目分別儲存文字教材、練習與複習資料；可複製 AI 家教提示、匯出與隔離式匯入 JSON。已增加 TXT/Markdown/CSV、PDF（可選文字）及 DOCX 本機預覽匯入與來源、版本號；圖片、影音及掃描型 PDF OCR 尚未支援。
+- v0.1：瀏覽器單機原型；家人 × 科目分別儲存文字教材、練習與複習資料；可複製 AI 家教提示、匯出與隔離式匯入 JSON。已增加 TXT/Markdown/CSV、PDF（可選文字）及 DOCX 本機解析；PNG/JPEG/WebP 圖片暫時預覽與人工輸入，尚無 OCR、影音或掃描型 PDF 文字辨識。
 - 已有 Node 單元及 IndexedDB 模擬測試；2026-11-22 已完成 Chrome 157 本機合成資料瀏覽器端到端驗收（`python tools/browser_smoke.py`）。
 - IndexedDB 只提供**邏輯分隔**；沒有使用者登入、伺服器權限、加密或跨裝置同步，**不可**當作家人間的隱私邊界。
 
@@ -12,7 +12,7 @@
 
 | 工作 | 原因 | 驗收方式 | 執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| **P0：多格式教材匯入（圖片、影音、掃描型 PDF）** | TXT/Markdown/CSV、可選文字 PDF 與 DOCX 已通過合成資料 Chrome 匯入驗收；圖片與影音待辦 | 圖片可顯示並明確提供 OCR/人工確認途徑，音訊/影片明確區分有無逐字稿；每筆教材綁定來源、版本、解析狀態，禁止跨人跨科混用；加入合成測試與瀏覽器驗收 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
+| **P0：多格式教材匯入（OCR、影音、掃描型 PDF）** | 文字 PDF、DOCX 已驗收；圖片預覽與人工輸入已實作，OCR、影音待辦 | 圖片文字辨識及人工確認、掃描 PDF OCR；音訊/影片明確區分有無逐字稿；每筆教材綁定來源、版本、解析狀態，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
 | 教材來源與版本模型 | 未來家人各科教材需要來源與版本追蹤 | 每份教材有 learner/subject 歸屬、來源、版本與更新時間；跨 scope 測試通過 | Codex | `docs/ARCHITECTURE.md` |
 
 ## 中期：條件成立再做

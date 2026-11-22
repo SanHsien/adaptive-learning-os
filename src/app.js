@@ -1,6 +1,6 @@
 import { normalizeName, reviewDue, evidenceLevel, tutorPrompt } from './core.js';
 import { listLearners, listSubjects, getLearner, getSubject, addLearner, addSubject, saveMaterial, listAttempts, addAttempt, exportScope, importIsolated } from './storage.js';
-import { parseMaterialFile } from './material-import.js';
+import { parseMaterialFile, validateImageFile } from './material-import.js';
 
 const $ = id => document.getElementById(id);
 let learnerId = '';
@@ -8,6 +8,14 @@ let subjectId = '';
 let snapshot = [];
 let pendingMaterialSource = null;
 let importGeneration = 0;
+let imagePreviewUrl = null;
+
+function clearImagePreview() {
+  if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+  imagePreviewUrl = null;
+  $('imagePreview').removeAttribute('src');
+  $('imagePanel').hidden = true;
+}
 
 function notify(message, isError = false) {
   $('message').textContent = message;
@@ -46,6 +54,7 @@ async function refreshSubjects(selectId = subjectId) {
 
 async function refreshWorkspace() {
   importGeneration++;
+  clearImagePreview();
   // The active pair is always captured before asynchronous reads.
   const requestedLearner = learnerId;
   const requestedSubject = subjectId;
@@ -129,16 +138,30 @@ $('materialFile').addEventListener('change', event => safe(async () => {
   if (!file) return;
   const owner = learnerId, course = subjectId;
   const generation = ++importGeneration;
+  if (/\.(png|jpe?g|webp)$/i.test(file.name)) {
+    const source = await validateImageFile(file);
+    if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇圖片');
+    clearImagePreview();
+    imagePreviewUrl = URL.createObjectURL(file);
+    $('imagePreview').src = imagePreviewUrl;
+    $('imagePanel').hidden = false;
+    pendingMaterialSource = source;
+    $('material').value = '';
+    $('materialOrigin').textContent = `圖片來源：${source.name}（請人工辨識並輸入文字，再按儲存教材）`;
+    notify('圖片只供本次預覽，尚未執行 OCR；請在教材欄輸入內容，確認後儲存。');
+    return;
+  }
   const {content, source} = await parseMaterialFile(file);
   if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇檔案');
   pendingMaterialSource = source;
+  clearImagePreview();
   $('material').value = content;
   $('materialOrigin').textContent = `待確認檔案：${file.name}（按「儲存教材」才會覆蓋目前教材）`;
   notify('檔案內容已載入預覽；確認後請按儲存教材。');
 }));
 
 $('material').addEventListener('input', () => {
-  if (pendingMaterialSource) { pendingMaterialSource = null; $('materialOrigin').textContent = '已編輯檔案內容，將以手動教材儲存。'; }
+  if (pendingMaterialSource && !pendingMaterialSource.type.startsWith('image/')) { pendingMaterialSource = null; $('materialOrigin').textContent = '已編輯檔案內容，將以手動教材儲存。'; }
 });
 
 $('attemptForm').addEventListener('submit', event => { event.preventDefault(); safe(async () => {
