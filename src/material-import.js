@@ -7,6 +7,22 @@ const FORMATS = {
 };
 
 const IMAGE_TYPES = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'};
+const MEDIA_TYPES = {mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm'};
+
+export async function validateMediaFile(file) {
+  const extension = file?.name?.toLowerCase().split('.').pop();
+  const type = MEDIA_TYPES[extension];
+  if (!type) throw new Error('影音僅支援 MP3、WAV、M4A、MP4、WebM');
+  if (!file.size || file.size > 100 * 1024 * 1024) throw new Error('影音檔案上限為 100 MB，空檔不可匯入');
+  const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+  const ascii = (start, end) => String.fromCharCode(...bytes.slice(start, end));
+  const valid = extension === 'mp3' ? ascii(0, 3) === 'ID3' || (bytes[0] === 255 && (bytes[1] & 224) === 224)
+    : extension === 'wav' ? ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE'
+    : extension === 'm4a' || extension === 'mp4' ? ascii(4, 8) === 'ftyp'
+    : bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+  if (!valid) throw new Error('影音格式與檔案內容不符');
+  return {name: file.name.slice(0, 180), type};
+}
 
 export async function validateImageFile(file) {
   const extension = file?.name?.toLowerCase().split('.').pop();

@@ -27,13 +27,13 @@
 匯入單一 scope JSON -> 格式檢查 -> 建立新家人/科目與作答副本
 ```
 
-目前沒有後端與自動 AI API；教材為 subject 的 `material` 字串，`materialVersion` 累加版本號，`materialSource` 保留最近一次文字檔案的檔名和格式（手動儲存為 null），目前**沒有舊版教材全文的歷程**。固定複習間隔不代表已校準的個人化模型。
+目前沒有後端與自動 AI API；subject 的 `material`、`materialVersion`、`materialSource` 保留目前最新版供舊程式使用。IndexedDB v2 新增 `materials` store，以 `learnerId:subjectId` scope 索引保存每版全文、來源、SHA-256、確認狀態、建立時間；作答紀錄保留當時 `materialVersion`。升級舊資料庫後，第一次更新舊科目會保留既有最新版；無法憑空還原升級前已被覆蓋的更早版本。JSON 備份沿用 v1 schema，新增選用 `materialVersions` 欄位並相容舊備份。固定複習間隔不代表已校準的個人化模型。
 
 ## 後續資料模型設計限制
 
 ### P0：檔案教材匯入設計
 
-圖片 PNG/JPEG/WebP 透過檔頭驗證後以暫時性 blob URL 在當前科目預覽；人工輸入教材文字後才可寫入 IndexedDB，來源記錄圖片檔名與格式，不保存圖片二進位內容。切換家人或科目撤銷暫存 URL。圖片 OCR 仍未實作。
+圖片 PNG/JPEG/WebP 透過檔頭驗證後以暫時性 blob URL 在當前科目預覽；人工輸入教材文字後才可寫入 IndexedDB，來源記錄圖片檔名與格式，不保存圖片二進位內容。影音 MP3/WAV/M4A/MP4/WebM 亦需驗證檔頭及 100 MB 上限，以暫時性 blob URL 播放，人工輸入逐字稿並確認後才保存文字；切換家人或科目撤銷圖片及影音暫存 URL。圖片 OCR 與自動語音辨識仍未實作。
 
 已完成 TXT/Markdown/CSV、可選文字 PDF（PDF.js）、DOCX（Mammoth）的純瀏覽器擷取、預覽與確認儲存。擷取庫程式碼與授權文件在 `vendor/`，不連接第三方服務。接下來支援順序：圖片（OCR 或人工確認）→ 掃描型 PDF OCR → 音訊/影片（逐字稿或人工補錄）。Word `.doc` 二進位格式須轉檔為 DOCX。不得以「檔案已選取」等同「已成功理解教材」。
 

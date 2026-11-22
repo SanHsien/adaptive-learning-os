@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addLearner, addSubject, saveMaterial, getSubject, addAttempt, listAttempts, exportScope, importIsolated, listSubjects } from '../src/storage.js';
+import { addLearner, addSubject, saveMaterial, getSubject, listMaterialVersions, addAttempt, listAttempts, exportScope, importIsolated, listSubjects } from '../src/storage.js';
 
 test('不同家人與科目完全分開查詢、修改與匯出', async () => {
   const parent = await addLearner('甲');
@@ -112,4 +112,35 @@ test('並行更新同科教材仍逐次增加版本且跨人寫入拒絕', async
   assert.equal((await getSubject(subject.id)).materialVersion, 3);
   await assert.rejects(() => saveMaterial(other.id, subject.id, '越權內容'), /資料庫交易中止|不屬於/);
   assert.equal((await getSubject(subject.id)).materialVersion, 3);
+});
+
+test('教材版本保留全文、SHA256、作答版本並可隔離式備份還原', async () => {
+  const learner = await addLearner('版本歷程甲');
+  const other = await addLearner('版本歷程乙');
+  const subject = await addSubject(learner.id, '歷史', '初始教材');
+  await saveMaterial(learner.id, subject.id, '第二版', {name: 'ch2.md', type: 'text/markdown'});
+  const attempt = await addAttempt(learner.id, subject.id, {question:'版本題',answer:'答案',kind:'recall',hints:0,result:'correct'});
+  await saveMaterial(learner.id, subject.id, '第三版');
+  assert.equal(attempt.materialVersion, 2);
+  const versions = await listMaterialVersions(learner.id, subject.id);
+  assert.deepEqual(versions.map(x => x.content), ['初始教材', '第二版', '第三版']);
+  assert.deepEqual(versions.map(x => x.version), [1, 2, 3]);
+  assert.match(versions[1].contentHash, /^[a-f0-9]{64}$/);
+  await assert.rejects(() => listMaterialVersions(other.id, subject.id), /不屬於/);
+  const backup = await exportScope(learner.id, subject.id);
+  assert.equal(backup.attempts[0].materialVersion, 2);
+  const restored = await importIsolated(backup);
+  assert.deepEqual((await listMaterialVersions(restored.learner.id, restored.subject.id)).map(x => x.content), ['初始教材', '第二版', '第三版']);
+  assert.equal((await listAttempts(restored.learner.id, restored.subject.id))[0].materialVersion, 2);
+  const invalid = structuredClone(backup);
+  invalid.materialVersions[0].contentHash = 'invalid';
+  await assert.rejects(() => importIsolated(invalid), /版本歷程/);
+});
+
+test('舊版 v1 備份缺少歷程時，匯入仍保留最新教材版本', async () => {
+  const old = {schema:'adaptive-learning-os/v1', learner:{name:'舊版'}, subject:{name:'自然',material:'舊教材',materialVersion:4}, attempts:[]};
+  const restored = await importIsolated(old);
+  assert.equal((await listMaterialVersions(restored.learner.id, restored.subject.id))[0].version, 4);
+  await saveMaterial(restored.learner.id, restored.subject.id, '新版教材');
+  assert.deepEqual((await listMaterialVersions(restored.learner.id, restored.subject.id)).map(x => x.version), [4, 5]);
 });

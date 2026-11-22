@@ -4,7 +4,7 @@
 
 ## 現況（2026-11-22）
 
-- v0.1：瀏覽器單機原型；家人 × 科目分別儲存文字教材、練習與複習資料；可複製 AI 家教提示、匯出與隔離式匯入 JSON。已增加 TXT/Markdown/CSV、PDF（可選文字）及 DOCX 本機解析；PNG/JPEG/WebP 圖片暫時預覽與人工輸入，尚無 OCR、影音或掃描型 PDF 文字辨識。
+- v0.1：瀏覽器單機原型；家人 × 科目分別儲存文字教材、練習與複習資料；可複製 AI 家教提示、匯出與隔離式匯入 JSON。已增加 TXT/Markdown/CSV、PDF（可選文字）及 DOCX 本機解析；PNG/JPEG/WebP 圖片暫時預覽與人工輸入；MP3/WAV/M4A/MP4/WebM 影音可暫時播放並人工輸入逐字稿。尚無 OCR、影音自動轉錄或掃描型 PDF 文字辨識。
 - 已有 Node 單元及 IndexedDB 模擬測試；2026-11-22 已完成 Chrome 157 本機合成資料瀏覽器端到端驗收（`python tools/browser_smoke.py`）。
 - IndexedDB 只提供**邏輯分隔**；沒有使用者登入、伺服器權限、加密或跨裝置同步，**不可**當作家人間的隱私邊界。
 
@@ -12,8 +12,8 @@
 
 | 工作 | 原因 | 驗收方式 | 執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| **P0：多格式教材匯入（OCR、影音、掃描型 PDF）** | 文字 PDF、DOCX 已驗收；圖片預覽與人工輸入已實作，OCR、影音待辦 | 圖片文字辨識及人工確認、掃描 PDF OCR；音訊/影片明確區分有無逐字稿；每筆教材綁定來源、版本、解析狀態，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
-| 教材來源與版本模型 | 未來家人各科教材需要來源與版本追蹤 | 每份教材有 learner/subject 歸屬、來源、版本與更新時間；跨 scope 測試通過 | Codex | `docs/ARCHITECTURE.md` |
+| **P0：多格式教材匯入（OCR、掃描型 PDF、自動影音轉錄）** | 文字 PDF、DOCX、圖片預覽與影音暫播／人工逐字稿已實作；OCR、自動轉錄待辦 | 圖片文字辨識及人工確認、掃描 PDF OCR；音訊/影片明確區分有無逐字稿；每筆教材綁定來源、版本、解析狀態，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
+| **教材來源與版本模型（已完成本機版）** | 已保留完整版本內容、SHA-256、解析確認狀態及作答當時版本；舊版備份可匯入 | Node 測試涵蓋跨 scope、版本歷程、備份還原；仍需更多瀏覽器格式測試 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
 
 ## 中期：條件成立再做
 

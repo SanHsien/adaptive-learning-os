@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMaterialFile, validateImageFile } from '../src/material-import.js';
+import { parseMaterialFile, validateImageFile, validateMediaFile } from '../src/material-import.js';
 
 const textFile = (name, value) => ({name, size: new TextEncoder().encode(value).byteLength, text: async () => value});
 
@@ -17,6 +17,16 @@ test('圖片檔案須符合副檔名、內容簽章及尺寸限制', async () =>
   await assert.rejects(() => validateImageFile(file('fake.png', [60, 115, 118, 103])), /格式與檔案內容不符/);
   await assert.rejects(() => validateImageFile(file('large.png', [137, 80, 78, 71, 13, 10, 26, 10], 9 * 1024 * 1024)), /8 MB/);
   await assert.rejects(() => validateImageFile(file('image.svg', [60, 115, 118, 103])), /僅支援/);
+});
+
+test('影音只接受受限格式、大小與實際檔頭', async () => {
+  const file = (name, bytes, size = bytes.length) => ({name, size, slice: () => ({arrayBuffer: async () => Uint8Array.from(bytes).buffer})});
+  assert.deepEqual(await validateMediaFile(file('lecture.mp3', [73, 68, 51, 4])), {name: 'lecture.mp3', type: 'audio/mpeg'});
+  assert.deepEqual(await validateMediaFile(file('lecture.wav', [82,73,70,70,0,0,0,0,87,65,86,69])), {name: 'lecture.wav', type: 'audio/wav'});
+  assert.deepEqual(await validateMediaFile(file('lecture.mp4', [0,0,0,24,102,116,121,112])), {name: 'lecture.mp4', type: 'video/mp4'});
+  await assert.rejects(() => validateMediaFile(file('fake.mp4', [60,115,118,103])), /內容不符/);
+  await assert.rejects(() => validateMediaFile(file('huge.mp3', [73,68,51], 101 * 1024 * 1024)), /100 MB/);
+  await assert.rejects(() => validateMediaFile(file('danger.html', [73,68,51])), /僅支援/);
 });
 
 test('不支援的 DOC 與空白檔案不能假裝成功', async () => {

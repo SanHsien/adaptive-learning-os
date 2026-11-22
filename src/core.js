@@ -75,11 +75,26 @@ export function validateBackup(value) {
   if (value.subject.materialVersion !== undefined && (!Number.isInteger(value.subject.materialVersion) || value.subject.materialVersion < 0 || value.subject.materialVersion > 1000000)) throw new Error('教材版本無效');
   if (value.subject.materialSource != null) {
     const source = value.subject.materialSource;
-    if (typeof source !== 'object' || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 180 || !['text/plain', 'text/markdown', 'text/csv', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/webp'].includes(source.type)) throw new Error('教材來源無效');
+    if (typeof source !== 'object' || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 180 || !['text/plain', 'text/markdown', 'text/csv', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/webp', 'audio/mpeg', 'audio/wav', 'audio/mp4', 'video/mp4', 'video/webm'].includes(source.type)) throw new Error('教材來源無效');
   }
   if (value.attempts.length > 10000) throw new Error('單次匯入紀錄不可超過 10,000 筆');
+  if (value.materialVersions !== undefined) {
+    if (!Array.isArray(value.materialVersions) || value.materialVersions.length > 1000) throw new Error('教材版本歷程無效');
+    const versions = new Set();
+    for (const entry of value.materialVersions) {
+      if (!entry || !Number.isInteger(entry.version) || entry.version < 1 || entry.version > 1000000 || versions.has(entry.version) ||
+          typeof entry.content !== 'string' || entry.content.length > MAX_MATERIAL_CHARS ||
+          entry.parserStatus !== 'confirmed' ||
+          (entry.contentHash !== null && (typeof entry.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(entry.contentHash))) ||
+          typeof entry.createdAt !== 'string' || !Number.isFinite(Date.parse(entry.createdAt)) || entry.createdAt.length > 40 ||
+          (entry.source != null && (typeof entry.source !== 'object' || typeof entry.source.name !== 'string' || !entry.source.name.trim() || entry.source.name.length > 180 || !['text/plain', 'text/markdown', 'text/csv', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/webp', 'audio/mpeg', 'audio/wav', 'audio/mp4', 'video/mp4', 'video/webm'].includes(entry.source.type)))) throw new Error('教材版本歷程無效');
+      versions.add(entry.version);
+    }
+    if ((value.subject.materialVersion || 0) > 0 && !versions.has(value.subject.materialVersion)) throw new Error('教材最新版本不存在');
+  }
   for (const a of value.attempts) {
     validateAttempt(a);
+    if (a.materialVersion !== undefined && (!Number.isInteger(a.materialVersion) || a.materialVersion < 0 || a.materialVersion > 1000000)) throw new Error('作答教材版本無效');
   }
   return { learnerName, subjectName };
 }
