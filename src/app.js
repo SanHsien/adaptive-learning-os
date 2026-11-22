@@ -1,6 +1,7 @@
 import { normalizeName, reviewDue, evidenceLevel, tutorPrompt } from './core.js';
 import { listLearners, listSubjects, getLearner, getSubject, addLearner, addSubject, saveMaterial, listMaterialVersions, listAttempts, addAttempt, exportScope, importIsolated } from './storage.js';
 import { parseMaterialFile, validateImageFile, validateMediaFile } from './material-import.js';
+import { recognizeImage } from './ocr.js';
 
 const $ = id => document.getElementById(id);
 let learnerId = '';
@@ -10,8 +11,10 @@ let pendingMaterialSource = null;
 let importGeneration = 0;
 let imagePreviewUrl = null;
 let mediaPreviewUrl = null;
+let pendingImageFile = null;
 
 function clearImagePreview() {
+  pendingImageFile = null;
   if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
   imagePreviewUrl = null;
   $('imagePreview').removeAttribute('src');
@@ -165,9 +168,10 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     $('imagePreview').src = imagePreviewUrl;
     $('imagePanel').hidden = false;
     pendingMaterialSource = source;
+    pendingImageFile = file;
     $('material').value = '';
     $('materialOrigin').textContent = `圖片來源：${source.name}（請人工辨識並輸入文字，再按儲存教材）`;
-    notify('圖片只供本次預覽，尚未執行 OCR；請在教材欄輸入內容，確認後儲存。');
+    notify('圖片可按「本機 OCR 辨識」或手動輸入；確認內容後才儲存。');
     return;
   }
   if (/\.(mp3|wav|m4a|mp4|webm)$/i.test(file.name)) {
@@ -193,6 +197,23 @@ $('materialFile').addEventListener('change', event => safe(async () => {
   $('material').value = content;
   $('materialOrigin').textContent = `待確認檔案：${file.name}（按「儲存教材」才會覆蓋目前教材）`;
   notify('檔案內容已載入預覽；確認後請按儲存教材。');
+}));
+
+$('runOcr').addEventListener('click', () => safe(async () => {
+  if (!pendingImageFile) throw new Error('請先選擇圖片');
+  const owner = learnerId, course = subjectId, generation = importGeneration;
+  const file = pendingImageFile;
+  $('runOcr').disabled = true;
+  notify('正在本機辨識繁體中文；辨識結果須人工檢查。');
+  try {
+    const text = await recognizeImage(file);
+    if (owner !== learnerId || course !== subjectId || generation !== importGeneration || file !== pendingImageFile) {
+      throw new Error('學習空間或教材已切換，OCR 結果已捨棄');
+    }
+    $('material').value = text;
+    $('materialOrigin').textContent = `OCR 待確認：${file.name}（請校對文字後按儲存）`;
+    notify('OCR 完成，請檢查及修正文字，再按「儲存教材」。');
+  } finally { $('runOcr').disabled = false; }
 }));
 
 $('material').addEventListener('input', () => {

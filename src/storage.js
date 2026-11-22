@@ -163,6 +163,28 @@ export async function exportScope(learnerId, subjectId) {
 
 export async function importIsolated(backup) {
   const { learnerName, subjectName } = validateBackup(backup);
+  // Check content integrity before opening a write transaction. Legacy hashes may be null.
+  if (backup.materialVersions) {
+    const latest = backup.materialVersions.find(entry => entry.version === (backup.subject.materialVersion || 0));
+    if (latest && latest.content !== (backup.subject.material ?? '')) throw new Error('教材最新版本與備份內容不一致');
+    for (const entry of backup.materialVersions) {
+      if (entry.contentHash !== null && entry.contentHash !== await contentHash(entry.content)) {
+        throw new Error('教材版本 SHA-256 驗證失敗，拒絕匯入');
+      }
+    }
+  }
+  const allowedVersions = new Set((backup.materialVersions || []).map(entry => entry.version));
+  if (!backup.materialVersions && (backup.subject.materialVersion || backup.subject.material)) {
+    allowedVersions.add(backup.subject.materialVersion || 1);
+  }
+  for (const attempt of backup.attempts) {
+    const legacyHistoricalReference = !backup.materialVersions && attempt.materialVersion > 0 &&
+      attempt.materialVersion <= (backup.subject.materialVersion || 0);
+    if (attempt.materialVersion != null && attempt.materialVersion !== 0 &&
+        !allowedVersions.has(attempt.materialVersion) && !legacyHistoricalReference) {
+      throw new Error('作答引用不存在的教材版本');
+    }
+  }
   const learner = { id: newId(), name: `${learnerName}（匯入）`, createdAt: new Date().toISOString() };
   const subject = { id: newId(), learnerId: learner.id, name: subjectName, material: backup.subject.material ?? '', materialVersion: backup.subject.materialVersion || (backup.subject.material ? 1 : 0), materialSource: backup.subject.materialSource || null, createdAt: new Date().toISOString() };
   const versions = backup.materialVersions || (subject.materialVersion ? [{version: subject.materialVersion, content: subject.material, source: subject.materialSource, contentHash: null, parserStatus:'confirmed', createdAt: subject.createdAt}] : []);

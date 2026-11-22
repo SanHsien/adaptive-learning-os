@@ -8,8 +8,10 @@
     "serve": "npx --yes http-server . -p 4173 -c-1"
   },
   "devDependencies": {
+    "@tesseract.js-data/chi_tra": "^1.0.0",
     "fake-indexeddb": "^6.2.8",
     "mammoth": "^1.13.0",
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "^6.2.108",
+    "tesseract.js": "^7.0.0"
   }
 }

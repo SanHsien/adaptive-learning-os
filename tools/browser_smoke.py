@@ -8,6 +8,7 @@ import json
 import base64
 import io
 import zipfile
+from PIL import Image, ImageDraw, ImageFont
 from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +18,17 @@ from playwright.sync_api import sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def sample_scanned_pdf():
+    """Synthetic one-page image-only PDF: no selectable text layer."""
+    image = Image.new('RGB', (1000, 260), 'white')
+    drawer = ImageDraw.Draw(image)
+    font = ImageFont.truetype('C:/Windows/Fonts/msjh.ttc', 115)
+    drawer.text((40, 50), '學習中文', font=font, fill='black')
+    result = io.BytesIO()
+    image.save(result, format='PDF', resolution=150)
+    return result.getvalue()
 
 
 def sample_pdf():
@@ -93,6 +105,13 @@ def run():
         try:
             context = browser.new_context(accept_downloads=True)
             page = context.new_page()
+            ocr_errors = []
+            external_requests = []
+            page.on('request', lambda request: external_requests.append(request.url) if not request.url.startswith((origin, 'blob:', 'data:')) else None)
+            page.on('pageerror', lambda error: ocr_errors.append(f'pageerror: {error}'))
+            page.on('console', lambda message: ocr_errors.append(f'console: {message.text}') if message.type == 'error' else None)
+            page.on('requestfailed', lambda request: ocr_errors.append(f'failed: {request.url}: {request.failure}'))
+            page.on('response', lambda response: ocr_errors.append(f'http {response.status}: {response.url}') if response.status >= 400 else None)
             page.goto(origin, wait_until="domcontentloaded")
             print('SMOKE: page ready', flush=True)
             create_learner(page, "測試甲")
@@ -119,17 +138,48 @@ def run():
                 page.locator('#materialForm button').click()
                 page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
                 assert name in page.locator('#materialOrigin').inner_text()
+            print('SMOKE: OCR scanned.pdf', flush=True)
+            page.locator('#materialFile').set_input_files({'name': 'scanned.pdf', 'mimeType': 'application/pdf', 'buffer': sample_scanned_pdf()})
+            try:
+                page.get_by_text('檔案內容已載入預覽', exact=False).wait_for(timeout=60000)
+            except Exception:
+                raise AssertionError(f'scanned PDF failure: {page.locator("#message").inner_text()!r}; {ocr_errors[-10:]}') from None
+            assert '【第 1 頁】' in page.locator('#material').input_value()
+            assert len(page.locator('#material').input_value().replace('【第 1 頁】', '').strip()) >= 2
+            page.locator('#materialForm button').click()
+            page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
+            assert 'scanned.pdf' in page.locator('#materialOrigin').inner_text()
             # Image preview requires manual text; raw image is not stored in the backup.
             tiny_png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==')
             page.locator('#materialFile').set_input_files({'name': 'diagram.png', 'mimeType': 'image/png', 'buffer': tiny_png})
-            page.get_by_text('圖片只供本次預覽', exact=False).wait_for()
+            page.get_by_text('圖片可按', exact=False).wait_for()
             assert page.locator('#imagePanel').is_visible()
             assert page.locator('#material').input_value() == ''
+            # Run the bundled OCR engine in Chrome with synthetic local image data.
+            ocr_png = page.evaluate('''() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 850; canvas.height = 170;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 850, 170);
+                ctx.fillStyle = 'black'; ctx.font = 'bold 90px sans-serif';
+                ctx.fillText('學習中文', 30, 115);
+                return canvas.toDataURL('image/png').split(',')[1];
+            }''')
+            page.locator('#materialFile').set_input_files({'name': 'ocr.png', 'mimeType': 'image/png', 'buffer': base64.b64decode(ocr_png)})
+            page.get_by_text('圖片可按', exact=False).wait_for()
+            page.locator('#runOcr').click()
+            try:
+                page.get_by_text('OCR 完成', exact=False).wait_for(timeout=45000)
+            except Exception:
+                raise AssertionError(f'OCR browser failure: {page.locator("#message").inner_text()!r}; errors: {ocr_errors[-12:]}') from None
+            assert page.locator('#material').input_value().strip()
+            assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
             page.locator('#material').fill('人工辨識：三角形')
             page.locator('#materialForm button').click()
             page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
-            assert 'diagram.png' in page.locator('#materialOrigin').inner_text()
+            assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
             assert page.locator('#imagePanel').is_hidden()
+            assert not external_requests, f'Unexpected external network request: {external_requests[:5]}'
             # Restore DOCX to test that invalid files do not replace existing content.
             page.locator('#materialFile').set_input_files({'name': 'chapter.docx', 'mimeType': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'buffer': sample_docx()})
             page.get_by_text('檔案內容已載入預覽', exact=False).wait_for()

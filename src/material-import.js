@@ -1,4 +1,21 @@
 import { MAX_MATERIAL_CHARS, validateMaterial } from './core.js';
+import { recognizeImage } from './ocr.js';
+
+const MAX_OCR_PAGES = 20;
+
+async function recognizePdfPage(page) {
+  const viewport = page.getViewport({scale: Math.min(1.5, 2200 / Math.max(page.view[2] - page.view[0], page.view[3] - page.view[1]))});
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  const context = canvas.getContext('2d', {alpha: false});
+  if (!context) throw new Error('PDF OCR 畫布初始化失敗');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({canvasContext: context, viewport}).promise;
+  const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PDF 頁面影像產生失敗')), 'image/png'));
+  return recognizeImage(blob);
+}
 
 const FORMATS = {
   txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', csv: 'text/csv',
@@ -60,10 +77,17 @@ export async function parseMaterialFile(file) {
       if (pdf.numPages > 100) throw new Error('PDF 超過 100 頁上限，請先拆分教材');
       const pages = [];
       let charCount = 0;
+      let ocrPages = 0;
       for (let index = 1; index <= pdf.numPages; index++) {
         const page = await pdf.getPage(index);
         const lines = (await page.getTextContent()).items.map(item => item.str || '');
-        const pageText = `【第 ${index} 頁】\n${lines.join(' ')}`;
+        let text = lines.join(' ').trim();
+        if (!text) {
+          if (++ocrPages > MAX_OCR_PAGES) throw new Error('掃描 PDF OCR 上限為 20 頁，請拆分教材');
+          try { text = await recognizePdfPage(page); }
+          catch (error) { throw new Error(`第 ${index} 頁 OCR 失敗：${error.message}`); }
+        }
+        const pageText = `【第 ${index} 頁】\n${text}`;
         charCount += pageText.length;
         if (charCount > MAX_MATERIAL_CHARS) throw new Error('擷取文字超過十萬字元，請先拆分教材');
         pages.push(pageText);

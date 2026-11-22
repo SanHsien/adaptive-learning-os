@@ -144,3 +144,37 @@ test('舊版 v1 備份缺少歷程時，匯入仍保留最新教材版本', asyn
   await saveMaterial(restored.learner.id, restored.subject.id, '新版教材');
   assert.deepEqual((await listMaterialVersions(restored.learner.id, restored.subject.id)).map(x => x.version), [4, 5]);
 });
+
+test('舊版備份作答可引用未保存的早期教材版本，但不可引用未來版本', async () => {
+  const old = {schema:'adaptive-learning-os/v1', learner:{name:'舊紀錄'}, subject:{name:'數學',material:'第四版',materialVersion:4}, attempts:[{question:'舊題',answer:'舊答',kind:'recall',result:'correct',hints:0,materialVersion:2}]};
+  const restored = await importIsolated(old);
+  assert.equal((await listAttempts(restored.learner.id,restored.subject.id))[0].materialVersion, 2);
+  assert.deepEqual((await listMaterialVersions(restored.learner.id,restored.subject.id)).map(v => v.version), [4]);
+  old.attempts[0].materialVersion = 5;
+  await assert.rejects(() => importIsolated(old), /不存在的教材版本/);
+});
+
+test('拒絕 SHA 正規格式但內容已被竄改的備份，不留下部分資料', async () => {
+  const learner = await addLearner('原始完整性');
+  const subject = await addSubject(learner.id, '理化', '原本教材');
+  const backup = await exportScope(learner.id, subject.id);
+  backup.learner.name = 'HASH_TAMPER_MARKER';
+  backup.materialVersions[0].content = '惡意改動教材';
+  backup.subject.material = '惡意改動教材';
+  await assert.rejects(() => importIsolated(backup), /SHA-256/);
+  const {listLearners} = await import('../src/storage.js');
+  assert.equal((await listLearners()).some(x => x.name.includes('HASH_TAMPER_MARKER')), false);
+});
+
+test('拒絕最新版本不一致及作答引用不存在的版本', async () => {
+  const learner = await addLearner('版本參照');
+  const subject = await addSubject(learner.id, '國文', '第一版');
+  await addAttempt(learner.id, subject.id, {question:'測試',answer:'答案',kind:'recall',hints:0,result:'correct'});
+  const backup = await exportScope(learner.id, subject.id);
+  const mismatch = structuredClone(backup);
+  mismatch.subject.material = '最新版本被換掉';
+  await assert.rejects(() => importIsolated(mismatch), /不一致/);
+  const missing = structuredClone(backup);
+  missing.attempts[0].materialVersion = 99;
+  await assert.rejects(() => importIsolated(missing), /不存在的教材版本/);
+});
