@@ -38,6 +38,8 @@ OCR 接入 `AbortSignal`，切換家人／科目或改選檔案時中止舊辨�
 
 後續增補 `tools/browser_smoke.py` 合成三頁 PDF（文字層→影像掃描→文字層），驗證頁碼、順序、掃描頁非空文字及人工確認保存來源 `mixed.pdf`。曾以八頁掃描 PDF 測試匯入時切換至另一科；UI 檢查雖未出現跨科覆蓋，Chrome `browser.close()` 階段卻持續阻塞，整體無法視為驗收成功。長檔取消須另行定位資源清理問題並復測，不能僅憑 UI 顯示 PASS 判定完成。
 
+2026-11-22 追加：`src/ocr.js` 清理改為共用同一個終止 Promise，測試以延後完成的 `terminate()` 驗證取消後不會提早返回。`npm ci` 成功、`npm test` 30/30 通過、JavaScript `node --check` 與 `git diff --check` 通過。執行 `python -u tools/browser_smoke.py` 時混合型 PDF 與隔離／匯入操作均輸出 PASS，但執行程序未自行退出，最終以 Ctrl-C 中斷（exit 1）；**完整 Chrome E2E 仍未通過**。已新增 browser 關閉前後階段記錄，下一輪應以獨立程序對照無 OCR／圖片 OCR／掃描 PDF／混合 PDF 的退出行為。
+
 Chrome 157 曾執行 `python -u tools/browser_smoke.py` 退出碼 0：利用合成圖片執行繁體中文 OCR，確認非空辨識結果、人工校正後保存圖片來源；另以 Pillow 生成單頁**沒有文字層**的掃描 PDF，經 PDF.js 渲染 + Tesseract.js 辨識，確認逐頁文字預覽、人工儲存及來源保留。混合頁測試新增後亦曾完整退出碼 0，但後續重跑觀察到偶發瀏覽器關閉阻塞，需獨立調查。OCR 必須使用 `vendor/ocr` 的 Worker、WASM 與 `chi_tra.traineddata.gz`，不依賴外部辨識服務。限制：OCR 結果須人工校對；仍未涵蓋複雜掃描、批次大型 PDF、長時間 OCR 真正中止與跨 scope 非同步操作的完整壓力驗收。舊備份允許引用已遺失全文的歷史版本，但不會憑空重建其內容。
 
 ## 正式家庭使用：阻擋條件

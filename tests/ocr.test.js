@@ -85,3 +85,43 @@ test('Worker 尚在初始化時取消，初始化完成後仍應終止且不執�
     }
   }
 });
+
+test('取消後等待同一個 Worker 終止 Promise 完成才結束', async () => {
+  const previous = {
+    createImageBitmap: globalThis.createImageBitmap,
+    document: globalThis.document,
+    Tesseract: globalThis.Tesseract
+  };
+  let recognizeStarted;
+  const started = new Promise(resolve => { recognizeStarted = resolve; });
+  let rejectRecognition;
+  let finishTermination;
+  let terminations = 0;
+  globalThis.createImageBitmap = async () => ({width: 10, height: 10, close() {}});
+  globalThis.document = {createElement: () => ({getContext: () => ({fillRect() {}, drawImage() {}}), toBlob: cb => cb(new Blob(['image']))})};
+  globalThis.Tesseract = {createWorker: async () => ({
+    recognize: () => { recognizeStarted(); return new Promise((_, reject) => { rejectRecognition = reject; }); },
+    terminate: () => { terminations++; rejectRecognition(new Error('stopped')); return new Promise(resolve => { finishTermination = resolve; }); }
+  })};
+  try {
+    const controller = new AbortController();
+    const operation = recognizeImage(new Blob(['image']), controller.signal);
+    await started;
+    controller.abort();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(terminations, 1);
+    let settled = false;
+    void operation.finally(() => { settled = true; }).catch(() => {});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(settled, false);
+    finishTermination();
+    await assert.rejects(operation, {name: 'AbortError'});
+    assert.equal(terminations, 1);
+    assert.equal(settled, true);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  }
+});

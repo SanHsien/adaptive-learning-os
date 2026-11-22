@@ -297,7 +297,9 @@ def run():
             other.close()
             print(f"PASS: browser E2E, Chromium {browser.version}, synthetic scope separation/export/import")
         finally:
+            print('SMOKE: closing browser', flush=True)
             browser.close()
+            print('SMOKE: browser closed', flush=True)
 
 
 if __name__ == "__main__":

@@ -39,11 +39,12 @@ export async function recognizeImage(file, signal) {
     workerBlobURL: false
   });
   // Cancellation during worker initialization must still dispose the worker.
-  let terminated = false;
+  let terminationPromise;
   const terminate = () => {
-    if (terminated) return Promise.resolve();
-    terminated = true;
-    return worker.terminate();
+    if (!terminationPromise) {
+      terminationPromise = Promise.resolve().then(() => worker.terminate());
+    }
+    return terminationPromise;
   };
   const onAbort = () => { void terminate().catch(() => {}); };
   signal?.addEventListener('abort', onAbort, {once: true});
