@@ -1,4 +1,32 @@
 export const REVIEW_INTERVALS = [1, 3, 7, 14];
+export const MAX_MATERIAL_CHARS = 100000;
+export const MAX_ATTEMPT_CHARS = 10000;
+
+export function validateMaterial(value) {
+  if (typeof value !== 'string' || value.length > MAX_MATERIAL_CHARS) throw new Error('教材必須是十萬字元以內的文字');
+  return value;
+}
+
+export function validateAttempt(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      typeof value.question !== 'string' || !value.question.trim() || value.question.length > MAX_ATTEMPT_CHARS ||
+      typeof value.answer !== 'string' || !value.answer.trim() || value.answer.length > MAX_ATTEMPT_CHARS ||
+      !['correct', 'incorrect'].includes(value.result) || !['recall', 'transfer'].includes(value.kind) ||
+      !Number.isInteger(value.hints) || value.hints < 0 || value.hints > 99) {
+    throw new Error('作答紀錄內容或長度無效');
+  }
+  for (const key of ['createdAt', 'reviewDue']) {
+    if (value[key] !== undefined && value[key] !== null &&
+        (typeof value[key] !== 'string' || !Number.isFinite(Date.parse(value[key])) || value[key].length > 40)) {
+      throw new Error(`${key} 日期格式無效`);
+    }
+  }
+  return {
+    question: value.question, answer: value.answer, result: value.result,
+    kind: value.kind, hints: value.hints,
+    reviewDue: value.reviewDue ?? null
+  };
+}
 
 export function normalizeName(name, label = '名稱') {
   const value = String(name ?? '').trim();
@@ -43,11 +71,15 @@ export function validateBackup(value) {
   }
   const learnerName = normalizeName(value.learner.name, '學習者名稱');
   const subjectName = normalizeName(value.subject.name, '科目名稱');
+  validateMaterial(value.subject.material ?? '');
+  if (value.subject.materialVersion !== undefined && (!Number.isInteger(value.subject.materialVersion) || value.subject.materialVersion < 0 || value.subject.materialVersion > 1000000)) throw new Error('教材版本無效');
+  if (value.subject.materialSource != null) {
+    const source = value.subject.materialSource;
+    if (typeof source !== 'object' || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 180 || !['text/plain', 'text/markdown', 'text/csv'].includes(source.type)) throw new Error('教材來源無效');
+  }
   if (value.attempts.length > 10000) throw new Error('單次匯入紀錄不可超過 10,000 筆');
   for (const a of value.attempts) {
-    if (typeof a.question !== 'string' || typeof a.answer !== 'string' || !['correct', 'incorrect'].includes(a.result) || !['recall','transfer'].includes(a.kind) || !Number.isInteger(a.hints) || a.hints < 0 || a.hints > 99) {
-      throw new Error('備份內有無效作答紀錄');
-    }
+    validateAttempt(a);
   }
   return { learnerName, subjectName };
 }

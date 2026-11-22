@@ -1,4 +1,4 @@
-import { ensureOwner, newId, scopedKey, validateBackup } from './core.js';
+import { ensureOwner, newId, scopedKey, validateBackup, validateAttempt, validateMaterial, normalizeName } from './core.js';
 
 const DB_NAME = 'adaptive-learning-os-v1';
 const DB_VERSION = 1;
@@ -61,22 +61,39 @@ export const getLearner = id => read('learners', id);
 export const getSubject = id => read('subjects', id);
 
 export async function addLearner(name) {
-  const learner = { id: newId(), name, createdAt: new Date().toISOString() };
+  const learner = { id: newId(), name: normalizeName(name, '學習者名稱'), createdAt: new Date().toISOString() };
   await transaction(['learners'], 'readwrite', tx => tx.objectStore('learners').add(learner));
   return learner;
 }
 
 export async function addSubject(learnerId, name, material = '') {
   if (!await getLearner(learnerId)) throw new Error('學習者不存在');
-  const subject = { id: newId(), learnerId, name, material, createdAt: new Date().toISOString() };
+  const subject = { id: newId(), learnerId, name: normalizeName(name, '科目名稱'), material: validateMaterial(material), materialVersion: material ? 1 : 0, materialSource: null, createdAt: new Date().toISOString() };
   await transaction(['subjects'], 'readwrite', tx => tx.objectStore('subjects').add(subject));
   return subject;
 }
 
-export async function saveMaterial(learnerId, subjectId, material) {
-  const subject = await getSubject(subjectId);
-  ensureOwner(subject, learnerId);
-  await transaction(['subjects'], 'readwrite', tx => tx.objectStore('subjects').put({ ...subject, material }));
+export async function saveMaterial(learnerId, subjectId, material, source = null) {
+  validateMaterial(material);
+  if (source !== null && (!source || typeof source !== 'object' || typeof source.name !== 'string' || source.name.length > 180 || !source.name.trim() || !['text/plain', 'text/markdown', 'text/csv'].includes(source.type))) {
+    throw new Error('教材檔案來源資訊無效');
+  }
+  ensureOwner(await getSubject(subjectId), learnerId);
+  await transaction(['subjects'], 'readwrite', tx => {
+    const store = tx.objectStore('subjects');
+    const request = store.get(subjectId);
+    request.onsuccess = () => {
+      try {
+        const subject = request.result;
+        ensureOwner(subject, learnerId);
+        store.put({
+          ...subject, material, materialVersion: (subject.materialVersion || 0) + 1,
+          materialSource: source ? {name: source.name, type: source.type} : null,
+          materialUpdatedAt: new Date().toISOString()
+        });
+      } catch (_error) { tx.abort(); }
+    };
+  });
 }
 
 export async function listAttempts(learnerId, subjectId) {
@@ -88,7 +105,8 @@ export async function listAttempts(learnerId, subjectId) {
 export async function addAttempt(learnerId, subjectId, values) {
   const subject = await getSubject(subjectId);
   ensureOwner(subject, learnerId);
-  const attempt = { id: newId(), learnerId, subjectId, scope: scopedKey(learnerId,subjectId), ...values, createdAt: new Date().toISOString() };
+  const fields = validateAttempt(values);
+  const attempt = { ...fields, id: newId(), learnerId, subjectId, scope: scopedKey(learnerId,subjectId), createdAt: new Date().toISOString() };
   await transaction(['attempts'], 'readwrite', tx => tx.objectStore('attempts').add(attempt));
   return attempt;
 }
@@ -99,21 +117,20 @@ export async function exportScope(learnerId, subjectId) {
   if (!learner) throw new Error('學習者不存在');
   ensureOwner(subject, learnerId);
   const attempts = await listAttempts(learnerId, subjectId);
-  return { schema: 'adaptive-learning-os/v1', exportedAt: new Date().toISOString(), learner: { name: learner.name }, subject: { name: subject.name, material: subject.material }, attempts: attempts.map(({question, answer, result, hints, kind, createdAt, reviewDue}) => ({question, answer, result, hints, kind, createdAt, reviewDue})) };
+  return { schema: 'adaptive-learning-os/v1', exportedAt: new Date().toISOString(), learner: { name: learner.name }, subject: { name: subject.name, material: subject.material, materialVersion: subject.materialVersion || 0, materialSource: subject.materialSource || null }, attempts: attempts.map(({question, answer, result, hints, kind, createdAt, reviewDue}) => ({question, answer, result, hints, kind, createdAt, reviewDue})) };
 }
 
 export async function importIsolated(backup) {
   const { learnerName, subjectName } = validateBackup(backup);
   const learner = { id: newId(), name: `${learnerName}（匯入）`, createdAt: new Date().toISOString() };
-  const subject = { id: newId(), learnerId: learner.id, name: subjectName, material: String(backup.subject.material || ''), createdAt: new Date().toISOString() };
+  const subject = { id: newId(), learnerId: learner.id, name: subjectName, material: backup.subject.material ?? '', materialVersion: backup.subject.materialVersion || (backup.subject.material ? 1 : 0), materialSource: backup.subject.materialSource || null, createdAt: new Date().toISOString() };
   await transaction(['learners','subjects','attempts'], 'readwrite', tx => {
     tx.objectStore('learners').add(learner);
     tx.objectStore('subjects').add(subject);
     for (const a of backup.attempts) {
+      const fields = validateAttempt(a);
       tx.objectStore('attempts').add({
-        id: newId(), learnerId: learner.id, subjectId: subject.id, scope: scopedKey(learner.id,subject.id),
-        question: a.question, answer: a.answer, result: a.result, kind: a.kind, hints: a.hints,
-        reviewDue: typeof a.reviewDue === 'string' ? a.reviewDue : null,
+        ...fields, id: newId(), learnerId: learner.id, subjectId: subject.id, scope: scopedKey(learner.id,subject.id),
         createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString()
       });
     }

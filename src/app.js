@@ -5,6 +5,7 @@ const $ = id => document.getElementById(id);
 let learnerId = '';
 let subjectId = '';
 let snapshot = [];
+let pendingMaterialSource = null;
 
 function notify(message, isError = false) {
   $('message').textContent = message;
@@ -47,6 +48,9 @@ async function refreshWorkspace() {
   const requestedSubject = subjectId;
   $('workspace').hidden = !requestedLearner || !requestedSubject;
   snapshot = [];
+  pendingMaterialSource = null;
+  $('materialFile').value = '';
+  $('materialOrigin').textContent = '';
   if ($('workspace').hidden) return;
   const [learner, subject, attempts] = await Promise.all([
     getLearner(requestedLearner), getSubject(requestedSubject), listAttempts(requestedLearner, requestedSubject)
@@ -56,6 +60,7 @@ async function refreshWorkspace() {
   snapshot = attempts;
   $('contextTitle').textContent = `${learner.name} / ${subject.name}`;
   $('material').value = subject.material || '';
+  $('materialOrigin').textContent = subject.materialSource ? `來源：${subject.materialSource.name} · 版本 ${subject.materialVersion || 0}` : `手動教材 · 版本 ${subject.materialVersion || 0}`;
   $('total').textContent = attempts.length;
   $('mastery').textContent = evidenceLevel(attempts);
   $('due').textContent = attempts.filter(a => a.reviewDue && new Date(a.reviewDue) <= new Date()).length;
@@ -112,9 +117,29 @@ $('subject').addEventListener('change', () => safe(async () => {
 
 $('materialForm').addEventListener('submit', event => { event.preventDefault(); safe(async () => {
   const owner = learnerId, course = subjectId;
-  await saveMaterial(owner, course, $('material').value);
-  if (owner === learnerId && course === subjectId) notify('這個科目的教材已儲存。');
+  await saveMaterial(owner, course, $('material').value, pendingMaterialSource);
+  if (owner === learnerId && course === subjectId) { pendingMaterialSource = null; await refreshWorkspace(); notify('這個科目的教材已儲存。'); }
 }); });
+
+$('materialFile').addEventListener('change', event => safe(async () => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const owner = learnerId, course = subjectId;
+  const extension = file.name.toLowerCase().split('.').pop();
+  const allowed = {txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', csv: 'text/csv'};
+  if (!allowed[extension] || file.size > 1024 * 1024) throw new Error('僅支援 1 MB 以下 TXT、Markdown 或 CSV 文字教材');
+  const content = await file.text();
+  if (content.length > 100000) throw new Error('教材超過十萬字元上限');
+  if (owner !== learnerId || course !== subjectId) throw new Error('學習空間已切換，請重新選擇檔案');
+  pendingMaterialSource = {name: file.name, type: allowed[extension]};
+  $('material').value = content;
+  $('materialOrigin').textContent = `待確認檔案：${file.name}（按「儲存教材」才會覆蓋目前教材）`;
+  notify('檔案內容已載入預覽；確認後請按儲存教材。');
+}));
+
+$('material').addEventListener('input', () => {
+  if (pendingMaterialSource) { pendingMaterialSource = null; $('materialOrigin').textContent = '已編輯檔案內容，將以手動教材儲存。'; }
+});
 
 $('attemptForm').addEventListener('submit', event => { event.preventDefault(); safe(async () => {
   const owner = learnerId, course = subjectId;
