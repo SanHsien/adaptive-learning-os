@@ -1,0 +1,13 @@
+{
+  "name": "adaptive-learning-os",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "serve": "npx --yes http-server . -p 4173 -c-1"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.8"
+  }
+}
