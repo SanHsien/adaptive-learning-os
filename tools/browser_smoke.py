@@ -51,6 +51,43 @@ def sample_pdf():
     return output + f'trailer\n<< /Root 1 0 R /Size {len(offsets)} >>\nstartxref\n{start}\n%%EOF\n'.encode('ascii')
 
 
+def sample_mixed_pdf():
+    """Three pages: selectable text, raster-only Chinese, selectable text."""
+    picture = Image.new('RGB', (1000, 260), 'white')
+    drawer = ImageDraw.Draw(picture)
+    font = ImageFont.truetype('C:/Windows/Fonts/msjh.ttc', 115)
+    drawer.text((40, 50), '學習中文', font=font, fill='black')
+    raster = io.BytesIO()
+    picture.save(raster, format='JPEG', quality=90)
+    image_bytes = raster.getvalue()
+    objects = [
+        b'<< /Type /Catalog /Pages 2 0 R >>',
+        b'<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>',
+        b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 6 0 R >> >> /Contents 7 0 R >>',
+        b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im1 9 0 R >> >> /Contents 8 0 R >>',
+        b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 6 0 R >> >> /Contents 10 0 R >>',
+        b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ]
+    def stream(data, metadata=b''):
+        return b'<< /Length ' + str(len(data)).encode() + metadata + b' >>\nstream\n' + data + b'\nendstream'
+    objects.extend([
+        stream(b'BT /F1 18 Tf 72 720 Td (First text page) Tj ET'),
+        stream(b'q 550 0 0 143 31 580 cm /Im1 Do Q'),
+        stream(image_bytes, b' /Type /XObject /Subtype /Image /Width 1000 /Height 260 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode'),
+        stream(b'BT /F1 18 Tf 72 720 Td (Third text page) Tj ET'),
+    ])
+    output = b'%PDF-1.4\n%\xe2\xe3\xcf\xd3\n'
+    offsets = [0]
+    for number, obj in enumerate(objects, 1):
+        offsets.append(len(output))
+        output += f'{number} 0 obj\n'.encode() + obj + b'\nendobj\n'
+    start = len(output)
+    output += f'xref\n0 {len(offsets)}\n0000000000 65535 f \n'.encode()
+    for offset in offsets[1:]:
+        output += f'{offset:010d} 00000 n \n'.encode()
+    return output + f'trailer\n<< /Root 1 0 R /Size {len(offsets)} >>\nstartxref\n{start}\n%%EOF\n'.encode()
+
+
 def sample_docx():
     result = io.BytesIO()
     with zipfile.ZipFile(result, 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -152,6 +189,19 @@ def run():
             page.locator('#materialForm button').click()
             page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
             assert 'scanned.pdf' in page.locator('#materialOrigin').inner_text()
+            print('SMOKE: mixed text/scanned/text PDF', flush=True)
+            page.locator('#materialFile').set_input_files({'name': 'mixed.pdf', 'mimeType': 'application/pdf', 'buffer': sample_mixed_pdf()})
+            try:
+                page.get_by_text('檔案內容已載入預覽', exact=False).wait_for(timeout=60000)
+            except Exception:
+                raise AssertionError(f'mixed PDF failure: {page.locator("#message").inner_text()!r}; {ocr_errors[-10:]}') from None
+            mixed = page.locator('#material').input_value()
+            assert mixed.index('【第 1 頁】') < mixed.index('First text page') < mixed.index('【第 2 頁】')
+            assert mixed.index('【第 2 頁】') < mixed.index('【第 3 頁】') < mixed.index('Third text page')
+            assert len(mixed.split('【第 2 頁】')[1].split('【第 3 頁】')[0].strip()) >= 2
+            page.locator('#materialForm button').click()
+            page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
+            assert 'mixed.pdf' in page.locator('#materialOrigin').inner_text()
             # Image preview requires manual text; raw image is not stored in the backup.
             tiny_png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==')
             page.locator('#materialFile').set_input_files({'name': 'diagram.png', 'mimeType': 'image/png', 'buffer': tiny_png})
