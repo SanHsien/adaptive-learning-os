@@ -10,6 +10,29 @@ test('文字教材匯入保存格式與來源，去除 UTF-8 BOM', async () => {
   assert.deepEqual(result.source, {name: '第一章.md', type: 'text/markdown'});
 });
 
+test('文字檔讀取中取消後不可交付教材', async () => {
+  const controller = new AbortController();
+  const file = {
+    name: 'slow.txt', size: 10,
+    text: async () => { controller.abort(); return '已取消的教材'; }
+  };
+  await assert.rejects(() => parseMaterialFile(file, controller.signal), {name: 'AbortError'});
+});
+
+test('DOCX 解碼中取消後不可交付教材', async () => {
+  const previous = globalThis.mammoth;
+  const controller = new AbortController();
+  try {
+    globalThis.mammoth = {extractRawText: async () => {
+      controller.abort();
+      return {value: '已取消的 Word 內容'};
+    }};
+    await assert.rejects(() => parseMaterialFile({
+      name: 'slow.docx', size: 10, arrayBuffer: async () => new ArrayBuffer(10)
+    }, controller.signal), {name: 'AbortError'});
+  } finally { globalThis.mammoth = previous; }
+});
+
 test('圖片檔案須符合副檔名、內容簽章及尺寸限制', async () => {
   const file = (name, bytes, size = bytes.length) => ({name, size, slice: () => ({arrayBuffer: async () => Uint8Array.from(bytes).buffer})});
   assert.deepEqual(await validateImageFile(file('chapter.png', [137, 80, 78, 71, 13, 10, 26, 10])), {name: 'chapter.png', type: 'image/png'});

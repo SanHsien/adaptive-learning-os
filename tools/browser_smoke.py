@@ -70,6 +70,9 @@ def local_server():
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    # Browser OCR workers may keep HTTP requests alive during shutdown.
+    server.daemon_threads = True
+    server.block_on_close = False
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

@@ -27,6 +27,7 @@ async function recognizePdfPage(page, signal) {
   }
   signal?.throwIfAborted();
   const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PDF 頁面影像產生失敗')), 'image/png'));
+  signal?.throwIfAborted();
   return recognizeImage(blob, signal);
 }
 
@@ -96,6 +97,7 @@ export async function parseMaterialFile(file, signal) {
         signal?.throwIfAborted();
         const page = await pdf.getPage(index);
         const lines = (await page.getTextContent()).items.map(item => item.str || '');
+        signal?.throwIfAborted();
         let text = lines.join(' ').trim();
         if (!text) {
           if (++ocrPages > MAX_OCR_PAGES) throw new Error('掃描 PDF OCR 上限為 20 頁，請拆分教材');

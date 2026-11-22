@@ -34,6 +34,8 @@ PNG、JPEG、WebP 須驗證副檔名、檔頭及 8 MB 上限；圖片僅用本�
 
 OCR 接入 `AbortSignal`，切換家人／科目或改選檔案時中止舊辨識並清理 Worker。`tests/ocr.test.js` 以合成 Worker 確認取消後不交付結果且只清理一次，並驗證初始化期間取消後仍可清理 Worker；PDF 渲染可取消。2026-11-22：27 項 Node 測試通過，Chrome 157 合成資料 E2E 通過；大型真實掃描的中止速度仍須壓力測試。
 
+新增文字檔讀取及 DOCX 解碼完成前取消的負向測試；掃描 PDF 頁面轉為 PNG 後再次檢查取消，PDF 文字層擷取後也會檢查取消。仍未證實長檔與混合型 PDF 在真實瀏覽器中的中斷性能。
+
 Chrome 157 執行 `python -u tools/browser_smoke.py` 退出碼 0：利用合成圖片執行繁體中文 OCR，確認非空辨識結果、人工校正後保存圖片來源；另以 Pillow 生成單頁**沒有文字層**的掃描 PDF，經 PDF.js 渲染 + Tesseract.js 辨識，確認逐頁文字預覽、人工儲存及來源保留。OCR 必須使用 `vendor/ocr` 的 Worker、WASM 與 `chi_tra.traineddata.gz`，不依賴外部辨識服務。限制：單頁結果須校對；尚未涵蓋複雜掃描、混合頁、批次大型 PDF、長時間 OCR 的真正中止及跨 scope 非同步操作。舊備份允許引用已遺失全文的歷史版本，但不會憑空重建其內容。
 
 ## 正式家庭使用：阻擋條件
