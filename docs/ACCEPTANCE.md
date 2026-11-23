@@ -72,6 +72,8 @@ IndexedDB v2 新增 `materials` store，版本寫入同一交易；版本完整�
 
 # 影音本機轉錄增量驗收（2026-11-23）
 
+2026-11-23：`tools/test_local_server.py` 新增真正 Python 子程序的取消整合案例（非 mock），包含第二次同時請求回應 409、DELETE 回應 200、原請求回應 409、子程序退出、暫存目錄清理、任務槽釋放及下一次合成轉錄回應 200；只使用合成 WAV，不載入 Whisper 或私人教材。該案例不代表真正 Whisper 模型在 Windows 載入及推論時的取消與記憶體資源已通過。
+
 2026-11-23：本機 HTTP 服務新增上傳 socket 15 秒閒置逾時及 `server_close()` 取消當前子程序。`python -m unittest discover -s tools -p 'test_*.py'` 12/12 通過，包含不完整上傳 Body 不佔用工作槽、關閉服務時發出取消與子程序終止通知；`npm test` 33/33 通過。這些是合成資料／mock 子程序驗證，尚未驗證 Windows 真 Whisper 子程序完全退出及長檔資源釋放。
 
 新增 `tools/test_local_server.py`：採合成 WAV、mock Whisper 子程序，測 localhost API 的工作階段來源、Host/Origin/Token、非法格式、取消先於上傳、靜態檔白名單及完成後工作狀態；不下載模型，也不包含真實家人資料。`python -u tools/browser_transcription_smoke.py` 使用 Chromium Headless Shell 與 mock Whisper，實際點按影音上傳、一鍵轉錄、校對、指定科目儲存及轉錄中切換另一位學習者取消舊任務：`PASS`，Python 退出碼 0。**尚未證實**長影音效能、取消時所有 Windows 真實子程序退出及真實教材轉錄品質；完成前 P0 保持未結案。

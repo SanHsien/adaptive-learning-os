@@ -3,10 +3,13 @@
 import http.client
 import json
 import socket
+import subprocess
+import sys
 import threading
 import time
 import unittest
 import uuid
+from pathlib import Path
 from unittest.mock import patch
 
 from local_server import Handler, LocalServer
@@ -102,6 +105,65 @@ class ServerTests(unittest.TestCase):
         isolated.server_close()
         self.assertTrue(cancel.is_set())
         self.assertTrue(process.terminated)
+
+    def test_real_child_cancel_cleanup_and_next_job(self):
+        """Exercise a real OS child, not a mock Whisper process."""
+        started = threading.Event()
+        captured = {}
+        result = {}
+        job_id = str(uuid.uuid4())
+        original_popen = subprocess.Popen
+
+        def launch(command, **kwargs):
+            captured['folder'] = Path(command[command.index('--output') + 1]).parent
+            process = original_popen(
+                [sys.executable, '-c', 'import time; time.sleep(60)'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            )
+            captured['process'] = process
+            started.set()
+            return process
+
+        def upload():
+            result['response'] = self.request('POST', '/api/transcribe', WAV, self.auth(job_id))
+
+        with patch('local_server.subprocess.Popen', side_effect=launch):
+            worker = threading.Thread(target=upload)
+            worker.start()
+            try:
+                self.assertTrue(started.wait(5), 'real child did not start')
+                self.assertEqual(self.request('POST', '/api/transcribe', WAV, self.auth())[0], 409)
+                status, _ = self.request('DELETE', '/api/transcribe', headers=self.auth(job_id))
+                self.assertEqual(status, 200)
+                worker.join(8)
+                self.assertFalse(worker.is_alive(), 'cancelled request did not finish')
+                self.assertEqual(result['response'][0], 409)
+                self.assertIsNotNone(captured['process'].poll(), 'cancelled child is still running')
+                deadline = time.monotonic() + 5
+                while captured['folder'].exists() and time.monotonic() < deadline:
+                    time.sleep(.02)
+                self.assertFalse(captured['folder'].exists(), 'temporary media not cleaned')
+            finally:
+                if 'process' in captured and captured['process'].poll() is None:
+                    captured['process'].kill()
+                    captured['process'].wait(timeout=5)
+                worker.join(8)
+        self.assertIsNone(self.server.active)
+        class QuickProcess:
+            returncode = 0
+
+            def communicate(self, timeout=None):
+                return b'', b''
+
+        def next_launch(command, **kwargs):
+            Path(command[command.index('--output') + 1]).write_text(
+                '1\n00:00:00,000 --> 00:00:01,000\n再次轉錄\n', encoding='utf-8')
+            return QuickProcess()
+
+        with patch('local_server.subprocess.Popen', side_effect=next_launch):
+            status, body = self.request('POST', '/api/transcribe', WAV, self.auth())
+        self.assertEqual(status, 200)
+        self.assertIn('再次轉錄', json.loads(body)['srt'])
 
     def test_cancel_before_post_is_bounded_and_prevents_launch(self):
         job_id = str(uuid.uuid4())
