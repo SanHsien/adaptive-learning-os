@@ -31,6 +31,8 @@
 
 ## 模組職責
 
+影音增量（2026-11-23）：`tools/transcribe_local.py` 是獨立的本機 CLI，可選用 `faster-whisper` 轉錄為 SRT；不連接瀏覽器，也不保存或上傳影音。`material-import.js` 解析 SRT／WebVTT 並將文字、來源送回現有的 `app.js` 校對流程，由 `storage.js` 依當前 `learnerId/subjectId` 驗證歸屬與版本化。原始媒體不進 IndexedDB；若使用 CLI 產生的 SRT，該字幕檔由使用者在自己的裝置保管。
+
 | 模組 | 職責 | 不做的事 |
 |---|---|---|
 | `src/core.js` | 純函式：名稱正規化、ID、`scopedKey`、`ensureOwner` 歸屬檢查、教材／作答／備份驗證、掌握證據等級、複習日期（1/3/7/14 天）、家教提示詞組裝 | 不碰 DOM、不碰 IndexedDB，方便在 Node 直接測 |

@@ -35,3 +35,5 @@ jobs:
       - name: JavaScript syntax
         run: |
           for file in src/*.js tests/*.js; do node --check "$file"; done
+      - name: Offline transcription utility tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py'

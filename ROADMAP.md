@@ -18,9 +18,11 @@
 
 ## 近期：可直接開始
 
+2026-11-23：新增可選用 `tools/transcribe_local.py`，以本機 `faster-whisper` 將影音轉錄為 SRT；網站可匯入 SRT／WebVTT 並校對後儲存到當前學習者／科目。尚未完成網站一鍵轉錄、真實影音辨識品質驗收，也未安裝／封裝模型；P0 保持進行中。
+
 | 工作 | 原因 | 驗收方式 | 執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| **P0：多格式教材匯入（圖片／掃描 PDF OCR 已完成；影音自動轉錄待辦）** | PDF、DOCX、圖片 OCR、掃描 PDF OCR、影音暫播／人工逐字稿已實作；尚無語音辨識 | 已完成合成圖片及掃描 PDF 真實 Chrome OCR 驗收；後續自動轉錄需模型、資源及隱私方案，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
+| **P0：多格式教材匯入（影音自動轉錄進行中）** | PDF、DOCX、圖片／掃描 PDF OCR 已完成；影音暫播、SRT/VTT 匯入及選用本機 Whisper CLI 已實作，但尚無網站內一鍵轉錄 | 合成字幕與 CLI 單元測試已完成；後續需驗證實際影音辨識品質、網頁端模型／資源／取消機制及隱私，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
 | **教材來源與版本模型（已完成本機版）** | 已保留完整版本內容、SHA-256、解析確認狀態及作答當時版本；舊版備份可匯入 | Node 測試涵蓋跨 scope、版本歷程、備份還原；仍需更多瀏覽器格式測試 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
 
 ## 中期：條件成立再做

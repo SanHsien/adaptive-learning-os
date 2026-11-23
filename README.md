@@ -32,6 +32,18 @@
 
 ## 測試
 
+### 本機影音自動轉錄（選用）
+
+已有 **SRT／WebVTT 逐字稿匯入**。想把 MP3、WAV、M4A、MP4、WebM 轉成逐字稿，可在個人電腦（不是網頁伺服器）安裝 `python -m pip install faster-whisper`，然後執行：
+
+```powershell
+python tools/transcribe_local.py "C:\path\lesson.mp3" --model small --language zh
+```
+
+此指令在影音旁建立 `lesson.srt`，已存在則拒絕覆寫。回到網站，先選擇**正確學習者與科目**，再把 SRT 當教材匯入、校對文字並按「儲存教材」。原始影音不會儲存進網站；每科保留逐字稿來源和版本。可選 `--device cuda` 使用受支援的 NVIDIA CUDA 環境；CPU 使用預設 `int8`。首次安裝／使用指定模型可能從網路**下載模型權重**，不會上傳音訊；如需完全離線，先在可信環境下載模型，再以 `--model` 指向本機模型資料夾。轉錄中文不保證都是繁體字，需人工校對。這是可選用的 **CLI 工具**，網站內的一鍵自動轉錄仍待實作。
+
+測試轉錄工具自身：`python -m unittest discover -s tools -p 'test_*.py'`（使用合成時間碼、不下載模型）。
+
 `npm test`：檢查跨人跨科隔離鍵、歸屬拒絕、學習證據、匯入驗證及教學提示詞。`python tools/browser_smoke.py`：使用 Playwright、Chrome、Python Pillow 在本機以合成圖片與掃描 PDF 驗收 OCR；不含家人真實資料。
 
 如果系統 Chrome 的 Playwright 關閉流程阻塞，可設定 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 為已安裝且可信任的 Chromium 執行檔絕對路徑再執行相同測試。測試的完整成功條件是 Python 退出碼 0；輸出 `PASS` 但程序未結束不算通過。

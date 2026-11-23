@@ -33,12 +33,33 @@ async function recognizePdfPage(page, signal) {
 
 const FORMATS = {
   txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', csv: 'text/csv',
+  srt: 'application/x-subrip', vtt: 'text/vtt',
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
 
 const IMAGE_TYPES = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'};
 const MEDIA_TYPES = {mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm'};
+
+export function parseSubtitle(text, extension) {
+  if (typeof text !== 'string' || !['srt', 'vtt'].includes(extension)) throw new Error('逐字稿格式無效');
+  const raw = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim();
+  if (extension === 'vtt' && !/^WEBVTT(?:[ \t].*)?(?:\n|$)/.test(raw)) throw new Error('WebVTT 缺少 WEBVTT 標頭');
+  const blocks = (extension === 'vtt' ? raw.replace(/^WEBVTT[^\n]*\n/, '').trim() : raw).split(/\n\s*\n/);
+  const output = [];
+  const timing = /^(?:\d{2}:)?\d{2}:\d{2}[,.]\d{3}\s+-->\s+(?:\d{2}:)?\d{2}:\d{2}[,.]\d{3}(?:\s+.*)?$/;
+  for (const block of blocks) {
+    const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+    if (!lines.length || (extension === 'vtt' && /^(NOTE|STYLE|REGION)(?:\s|$)/.test(lines[0]))) continue;
+    let index = lines.findIndex(line => timing.test(line));
+    if (index < 0 || index > 1 || !lines.slice(index + 1).length) throw new Error('逐字稿時間碼或字幕內容無效');
+    const words = lines.slice(index + 1).map(line => line.replace(/<[^>]*>/g, '').trim()).filter(Boolean);
+    if (!words.length) throw new Error('逐字稿字幕內容不可為空');
+    output.push(words.join(' '));
+  }
+  if (!output.length) throw new Error('逐字稿未包含有效字幕');
+  return output.join('\n');
+}
 
 export async function validateMediaFile(file) {
   const extension = file?.name?.toLowerCase().split('.').pop();
@@ -75,13 +96,14 @@ export async function parseMaterialFile(file, signal) {
   if (!file || typeof file.name !== 'string') throw new Error('請選擇教材檔案');
   const extension = file.name.toLowerCase().split('.').pop();
   const type = FORMATS[extension];
-  if (!type) throw new Error('支援 TXT、Markdown、CSV、PDF 或 DOCX；舊版 DOC 請先轉成 DOCX');
+  if (!type) throw new Error('支援 TXT、Markdown、CSV、SRT、VTT、PDF 或 DOCX；舊版 DOC 請先轉成 DOCX');
   if (!file.size || file.size > (['pdf', 'docx'].includes(extension) ? 8 : 1) * 1024 * 1024) {
     throw new Error('文字教材上限 1 MB，PDF／DOCX 上限 8 MB，空白檔案不可匯入');
   }
   let content;
-  if (['txt', 'md', 'markdown', 'csv'].includes(extension)) {
+  if (['txt', 'md', 'markdown', 'csv', 'srt', 'vtt'].includes(extension)) {
     content = (await file.text()).replace(/^\uFEFF/, '');
+    if (['srt', 'vtt'].includes(extension)) content = parseSubtitle(content, extension);
   } else if (extension === 'pdf') {
     const pdfjs = await import('../vendor/pdf.min.mjs');
     pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdf.worker.min.mjs', import.meta.url).href;

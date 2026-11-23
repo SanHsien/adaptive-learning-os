@@ -10,6 +10,18 @@ test('文字教材匯入保存格式與來源，去除 UTF-8 BOM', async () => {
   assert.deepEqual(result.source, {name: '第一章.md', type: 'text/markdown'});
 });
 
+test('SRT 與 WebVTT 逐字稿解析與來源保留', async () => {
+  const srt = '1\n00:00:00,000 --> 00:00:01,000\n第一句\n\n2\n00:00:01,000 --> 00:00:02,000\n第二句';
+  const vtt = 'WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n中文 <b>測試</b>';
+  assert.deepEqual(await parseMaterialFile(textFile('講座.srt', srt)), {
+    content: '第一句\n第二句', source: {name: '講座.srt', type: 'application/x-subrip'}
+  });
+  assert.equal((await parseMaterialFile(textFile('講座.vtt', vtt))).content, '中文 測試');
+  await assert.rejects(() => parseMaterialFile(textFile('bad.vtt', '00:00:00.000 --> 00:00:01.000\n不合法')), /WEBVTT/);
+  await assert.rejects(() => parseMaterialFile(textFile('bad.srt', '任意文字')), /時間碼/);
+  await assert.rejects(() => parseMaterialFile(textFile('empty.srt', '1\n00:00:00,000 --> 00:00:01,000')), /時間碼/);
+});
+
 test('文字檔讀取中取消後不可交付教材', async () => {
   const controller = new AbortController();
   const file = {

@@ -200,7 +200,7 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     pendingMaterialSource = source;
     $('material').value = '';
     $('materialOrigin').textContent = `影音來源：${source.name}（尚無逐字稿；可手動輸入或另行匯入文字逐字稿）`;
-    notify('影音檔案僅暫時播放，不會保存。請輸入逐字稿並確認儲存；尚未進行自動語音辨識。');
+    notify('影音僅暫時播放。可自行輸入逐字稿，或用本機轉錄工具產生 SRT 並重新匯入後校對。');
     return;
   }
   const {content, source} = await parseMaterialFile(file, controller.signal);
