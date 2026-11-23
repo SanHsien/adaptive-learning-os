@@ -6,6 +6,10 @@
 
 瀏覽器測試新增對真實 Tesseract `createWorker`、`recognize`、`terminate` 的非替代式計數包裝；測試須在 `recognize()` 確實啟動後才切換科目或學習者，確認舊教材未跨 scope 出現且 Worker 各終止一次。此計數不等於 Worker 終止耗時測量。
 
+2026-11-23：進一步觀測真實 `worker.terminate()` Promise 的完成與 `performance.now()` 毫秒耗時；跨科目、跨學習者兩次取消各檢查呼叫與完成數相同、沒有終止錯誤，且單次小於 15 秒。這是瀏覽器內終止方法的耗時，不等於 OS 層級記憶體已全數回收。
+
+本次 Chromium 149 瀏覽器實測兩次終止耗時分別約 0.1 ms、0.2 ms，測試退出碼 0；此數值僅反映包裝的 Promise 完成時間，不能推論實際 OCR 資源回收速度或長時間穩定性。
+
 2026-11-23：Chromium Headless Shell 149.0.7827.55 執行 `python -u tools/browser_smoke.py`，跨科及跨學習者兩輪取消均在真實 `recognize()` 進入後進行，均確認舊內容不越界且 `terminate()` 各一次；瀏覽器正常關閉、Python 退出碼 0。`npm ci`、`npm test`（31/31）、JS/Python 語法檢查與 `git diff --check` 通過。尚未量測實際資源釋放耗時與長時間反覆操作。
 
 執行 `npm ci`、`npm test` 及 `node --check` 檢查 `src/`、`tests/` 內 JavaScript。必測性質：不同 learner/subject 的教材與作答不可混查、不可跨 scope 修改、匯入建立新副本、無效備份拒絕、家教提示限單一 scope。

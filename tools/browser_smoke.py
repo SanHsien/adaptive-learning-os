@@ -251,7 +251,7 @@ def run():
             # Instrument the real Tesseract workers without replacing their recognition implementation.
             # Waiting for a recognize() entry is deterministic; a fixed sleep is not.
             page.evaluate('''() => {
-                window.__ocrLifecycle = {started: 0, terminated: 0};
+                window.__ocrLifecycle = {started: 0, terminated: 0, completed: 0, terminationMs: [], errors: []};
                 const originalCreateWorker = window.Tesseract.createWorker;
                 window.Tesseract.createWorker = async (...args) => {
                     const worker = await originalCreateWorker(...args);
@@ -261,9 +261,18 @@ def run():
                         window.__ocrLifecycle.started++;
                         return recognize(...params);
                     };
-                    worker.terminate = (...params) => {
+                    worker.terminate = async (...params) => {
+                        const startedAt = performance.now();
                         window.__ocrLifecycle.terminated++;
-                        return terminate(...params);
+                        try {
+                            return await terminate(...params);
+                        } catch (error) {
+                            window.__ocrLifecycle.errors.push(String(error));
+                            throw error;
+                        } finally {
+                            window.__ocrLifecycle.terminationMs.push(performance.now() - startedAt);
+                            window.__ocrLifecycle.completed++;
+                        }
                     };
                     return worker;
                 };
@@ -284,8 +293,10 @@ def run():
             page.get_by_text('測試甲 / 數學', exact=True).wait_for()
             assert page.locator('#material').input_value() == original_math
             assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
-            page.wait_for_function('window.__ocrLifecycle.terminated >= 1', timeout=15000)
-            assert page.evaluate('window.__ocrLifecycle.terminated') == 1
+            page.wait_for_function('window.__ocrLifecycle.completed >= 1', timeout=15000)
+            first_lifecycle = page.evaluate('window.__ocrLifecycle')
+            assert first_lifecycle['terminated'] == first_lifecycle['completed'] == 1
+            assert first_lifecycle['errors'] == []
             # Repeat cancellation across learners; the second learner must not receive stale text.
             print('SMOKE: cancel eight-page scanned PDF on learner switch', flush=True)
             page.locator('#materialFile').set_input_files({'name': 'long-scanned.pdf', 'mimeType': 'application/pdf', 'buffer': sample_long_scanned_pdf()})
@@ -295,8 +306,13 @@ def run():
             page.wait_for_timeout(1200)
             assert page.locator('#material').input_value() == '乙的獨立教材'
             assert 'ocr.png' not in page.locator('#materialOrigin').inner_text()
-            page.wait_for_function('window.__ocrLifecycle.terminated >= 2', timeout=15000)
-            assert page.evaluate('window.__ocrLifecycle.terminated') == 2
+            page.wait_for_function('window.__ocrLifecycle.completed >= 2', timeout=15000)
+            lifecycle = page.evaluate('window.__ocrLifecycle')
+            assert lifecycle['terminated'] == lifecycle['completed'] == 2
+            assert lifecycle['errors'] == []
+            assert len(lifecycle['terminationMs']) == 2
+            assert all(0 <= duration < 15000 for duration in lifecycle['terminationMs'])
+            print(f"SMOKE: OCR worker termination durations ms {lifecycle['terminationMs']}", flush=True)
             page.locator('#learner').select_option(label='測試甲')
             page.locator('#subject').select_option(label='數學')
             page.get_by_text('測試甲 / 數學', exact=True).wait_for()
