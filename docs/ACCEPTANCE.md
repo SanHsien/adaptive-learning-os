@@ -42,6 +42,8 @@ OCR 接入 `AbortSignal`，切換家人／科目或改選檔案時中止舊辨�
 
 獨立最小基準再現：使用 Playwright 同步 API 啟動 Chrome，僅呼叫 `new_context()`、`context.close()` 與 `browser.close()`，不載入專案、不執行 OCR/PDF，輸出 `start`、`launched`、`closing` 後仍卡住，需中斷。另一個基準在 `page.goto('about:blank')` 發生 30 秒 timeout。這些結果顯示本機 Playwright／Chrome 環境自身也有問題，不能將瀏覽器阻塞直接歸咎於 OCR Worker；後續應先檢查瀏覽器版本與 Playwright 相容性及乾淨瀏覽器程序的退出情況。
 
+2026-11-23：使用 Python Playwright 1.65.2 與本機已安裝的 Chromium Headless Shell 149.0.7827.55，指定環境變數 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指向其 `chrome-headless-shell.exe` 後，完整 `python -u tools/browser_smoke.py` 退出碼為 **0**，含圖片 OCR、掃描與混合 PDF、八頁掃描 PDF 選檔後切換科目的合成驗收。該取消案例檢查新科目始終空白、切回數學原教材及來源仍存在；不代表已量測長時間運作中的 Worker 實際終止延遲。無須修改生產 OCR 演算法來規避系統 Chrome 的阻塞。預設仍使用系統 Chrome；可透過此環境變數選擇獨立瀏覽器作診斷，且需自行確認執行檔來源與版本。Playwright 預設預期的 Chromium 1255 尚未安裝，故該版本尚未驗證。
+
 Chrome 157 曾執行 `python -u tools/browser_smoke.py` 退出碼 0：利用合成圖片執行繁體中文 OCR，確認非空辨識結果、人工校正後保存圖片來源；另以 Pillow 生成單頁**沒有文字層**的掃描 PDF，經 PDF.js 渲染 + Tesseract.js 辨識，確認逐頁文字預覽、人工儲存及來源保留。混合頁測試新增後亦曾完整退出碼 0，但後續重跑觀察到偶發瀏覽器關閉阻塞，需獨立調查。OCR 必須使用 `vendor/ocr` 的 Worker、WASM 與 `chi_tra.traineddata.gz`，不依賴外部辨識服務。限制：OCR 結果須人工校對；仍未涵蓋複雜掃描、批次大型 PDF、長時間 OCR 真正中止與跨 scope 非同步操作的完整壓力驗收。舊備份允許引用已遺失全文的歷史版本，但不會憑空重建其內容。
 
 ## 正式家庭使用：阻擋條件

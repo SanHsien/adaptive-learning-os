@@ -7,6 +7,7 @@ Run: python tools/browser_smoke.py
 import json
 import base64
 import io
+import os
 import zipfile
 from PIL import Image, ImageDraw, ImageFont
 from contextlib import contextmanager
@@ -28,6 +29,19 @@ def sample_scanned_pdf():
     drawer.text((40, 50), '學習中文', font=font, fill='black')
     result = io.BytesIO()
     image.save(result, format='PDF', resolution=150)
+    return result.getvalue()
+
+
+def sample_long_scanned_pdf():
+    """Eight image-only pages for cancellation and scope isolation checks."""
+    pages = []
+    font = ImageFont.truetype('C:/Windows/Fonts/msjh.ttc', 115)
+    for index in range(8):
+        picture = Image.new('RGB', (1000, 260), 'white')
+        ImageDraw.Draw(picture).text((40, 50), f'學習中文{index + 1}', font=font, fill='black')
+        pages.append(picture)
+    result = io.BytesIO()
+    pages[0].save(result, format='PDF', save_all=True, append_images=pages[1:], resolution=150)
     return result.getvalue()
 
 
@@ -140,8 +154,10 @@ def create_subject(page, name, material, question):
 
 def run():
     with local_server() as origin, sync_playwright() as playwright:
-        print('SMOKE: launching Chrome', flush=True)
-        browser = playwright.chromium.launch(channel="chrome", headless=True, timeout=20000)
+        executable = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE')
+        launch_options = {'executable_path': executable} if executable else {'channel': 'chrome'}
+        print(f'SMOKE: launching {executable or "Chrome"}', flush=True)
+        browser = playwright.chromium.launch(**launch_options, headless=True, timeout=20000)
         try:
             context = browser.new_context(accept_downloads=True)
             page = context.new_page()
@@ -232,6 +248,22 @@ def run():
             page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
             assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
             assert page.locator('#imagePanel').is_hidden()
+            # Cancel an eight-page OCR import by changing subjects; no stale preview may escape its scope.
+            print('SMOKE: cancel eight-page scanned PDF on subject switch', flush=True)
+            original_math = page.locator('#material').input_value()
+            page.locator('#materialFile').set_input_files({'name': 'long-scanned.pdf', 'mimeType': 'application/pdf', 'buffer': sample_long_scanned_pdf()})
+            page.wait_for_timeout(350)
+            page.locator('#subjectName').fill('取消驗收科目')
+            page.locator('#addSubject button').click()
+            page.locator('#subject').select_option(label='取消驗收科目')
+            page.get_by_text('測試甲 / 取消驗收科目', exact=True).wait_for()
+            assert page.locator('#material').input_value() == ''
+            page.wait_for_timeout(1200)
+            assert page.locator('#material').input_value() == ''
+            page.locator('#subject').select_option(label='數學')
+            page.get_by_text('測試甲 / 數學', exact=True).wait_for()
+            assert page.locator('#material').input_value() == original_math
+            assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
             assert not external_requests, f'Unexpected external network request: {external_requests[:5]}'
             # Restore DOCX to test that invalid files do not replace existing content.
             page.locator('#materialFile').set_input_files({'name': 'chapter.docx', 'mimeType': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'buffer': sample_docx()})

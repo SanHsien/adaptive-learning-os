@@ -34,6 +34,8 @@
 
 `npm test`：檢查跨人跨科隔離鍵、歸屬拒絕、學習證據、匯入驗證及教學提示詞。`python tools/browser_smoke.py`：使用 Playwright、Chrome、Python Pillow 在本機以合成圖片與掃描 PDF 驗收 OCR；不含家人真實資料。
 
+如果系統 Chrome 的 Playwright 關閉流程阻塞，可設定 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 為已安裝且可信任的 Chromium 執行檔絕對路徑再執行相同測試。測試的完整成功條件是 Python 退出碼 0；輸出 `PASS` 但程序未結束不算通過。
+
 ## 部署
 
 靜態網站可部署到 GitHub Pages，但 GitHub Pages 是公開入口，並不提供家人的私人登入權限。若要實際讓多位家人各自在不同裝置操作、彼此不可查看學習資料，需要下一版導入帳號登入、伺服器端權限驗證、雲端資料庫與備份加密；**不得將本機 IndexedDB 的邏輯隔離誤認為安全隔離**。
