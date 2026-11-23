@@ -2,7 +2,7 @@
 
 ## 定位與工作方式
 
-- 私人 repo `SanHsien/adaptive-learning-os`；繁體中文溝通，保持最小可驗證改動。
+- 預期為私人 repo `SanHsien/adaptive-learning-os`；2026-11-23 查得遠端意外為 public。恢復 private 或取得使用者明確公開授權前暫停推送／部署；只用合成資料測試。繁體中文溝通，保持最小可驗證改動。
 - 開工前看 `README.md`、`ROADMAP.md`、`SECURITY.md`、`docs/ARCHITECTURE.md`；後續工作以 `ROADMAP.md` 為單一待辦來源。
 - 不複製其他 repo 的整套治理機制；只採用有實際驗收用途的文件與檢查。遵守使用者全域 AGENTS 與 hooks。
 
