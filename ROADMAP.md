@@ -24,13 +24,15 @@
 
 2026-11-23：新增真正作業系統 Python 子程序（不載入 Whisper）的 HTTP 取消整合測試，覆蓋進行中第二個請求遭拒、DELETE 取消、子程序退出、暫存資料夾移除、任務槽釋放及下一次轉錄成功。這驗證 Windows 子程序層級的基本取消行為，但尚未測到真正 Whisper 模型載入期間、子孫程序、長影音資源與完整真模型瀏覽器流程。P0 未結案。
 
+2026-11-23：以獨立 `.venv`（faster-whisper 1.2.1／PyAV 16.1.0）及本機快取 small 模型執行合成中文 WAV 的真正 Whisper 網頁 E2E：成功轉錄、人工校對儲存至指定學習者／科目、切換學習者不洩漏教材、切回保留原內容，測試 Python 退出碼 0。此為短合成音訊驗收；真正模型載入／推論期間取消、長影音資源與衍生程序清理仍待測，P0 未結案。
+
 2026-11-23：新增可選用 `tools/transcribe_local.py`，以本機 `faster-whisper` 將影音轉錄為 SRT；網站可匯入 SRT／WebVTT 並校對後儲存到當前學習者／科目。尚未完成網站一鍵轉錄、真實影音辨識品質驗收，也未安裝／封裝模型；P0 保持進行中。
 
 2026-11-23：以本機快取 `faster-whisper-small`、隔離 PyAV 16.1.0 和 Windows SAPI 合成中文 WAV 完成真實推論，產生兩段語意相符的 SRT；模型輸出簡體字，仍須校對。排除與 PyAV 19.0.2 的相容問題；新增 SRT/VTT 解析、校對後保留來源、無效字幕拒絕、備份來源與跨學習者預覽隔離的 Chromium E2E，修復字幕 MIME 驗證和來源遺失。尚未完成長影音、真實教材品質、網站一鍵轉錄，P0 持續進行中。
 
 | 工作 | 原因 | 驗收方式 | 執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| **P0：多格式教材匯入（影音自動轉錄進行中）** | PDF、DOCX、圖片／掃描 PDF OCR 已完成；影音暫播、SRT/VTT 匯入、本機 Whisper CLI 與網頁一鍵轉錄初版已實作 | 合成 HTTP、瀏覽器 mock 及 Windows 真實 Python 子程序取消測試已有證據；後續驗證真模型網頁整合、長影音資源與取消機制及隱私，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
+| **P0：多格式教材匯入（影音自動轉錄進行中）** | PDF、DOCX、圖片／掃描 PDF OCR 已完成；影音暫播、SRT/VTT 匯入、本機 Whisper CLI 與網頁一鍵轉錄初版已實作 | 合成 HTTP、瀏覽器 mock、Windows 真 Python 子程序取消及短合成 WAV 真 Whisper 網頁 E2E 已通過；後續驗證真模型取消、長影音資源、衍生程序與隱私，禁止跨人跨科混用 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
 | **教材來源與版本模型（已完成本機版）** | 已保留完整版本內容、SHA-256、解析確認狀態及作答當時版本；舊版備份可匯入 | Node 測試涵蓋跨 scope、版本歷程、備份還原；仍需更多瀏覽器格式測試 | Codex | `docs/ARCHITECTURE.md`、`docs/ACCEPTANCE.md` |
 
 ## 中期：條件成立再做

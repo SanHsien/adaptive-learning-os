@@ -72,6 +72,8 @@ IndexedDB v2 新增 `materials` store，版本寫入同一交易；版本完整�
 
 # 影音本機轉錄增量驗收（2026-11-23）
 
+2026-11-23：`python -u tools/browser_real_transcription_smoke.py`（Windows，`PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指向已安裝 Headless Shell）以 SAPI 產生短合成中文 WAV，使用專案 `.venv` 的 faster-whisper 1.2.1／PyAV 16.1.0 及本機快取 small 模型，網頁實際觸發轉錄並產出非空辨識文字（20 字元）；人工校對後儲存，切換至另一位學習者的同名科目不顯示前者教材，切回前者恢復校對內容。輸出 `PASS`，程序退出碼 0。首輪測試在切換後立即斷言遇到非同步載入時序，改成等待指定教材內容出現後重跑通過。**未涵蓋**模型載入／推論取消、衍生程序與長影音資源上限，P0 維持未完成。
+
 2026-11-23：`tools/test_local_server.py` 新增真正 Python 子程序的取消整合案例（非 mock），包含第二次同時請求回應 409、DELETE 回應 200、原請求回應 409、子程序退出、暫存目錄清理、任務槽釋放及下一次合成轉錄回應 200；只使用合成 WAV，不載入 Whisper 或私人教材。該案例不代表真正 Whisper 模型在 Windows 載入及推論時的取消與記憶體資源已通過。
 
 2026-11-23：本機 HTTP 服務新增上傳 socket 15 秒閒置逾時及 `server_close()` 取消當前子程序。`python -m unittest discover -s tools -p 'test_*.py'` 12/12 通過，包含不完整上傳 Body 不佔用工作槽、關閉服務時發出取消與子程序終止通知；`npm test` 33/33 通過。這些是合成資料／mock 子程序驗證，尚未驗證 Windows 真 Whisper 子程序完全退出及長檔資源釋放。
