@@ -38,6 +38,8 @@
 
 這是單機測試功能，不提供公開服務或帳號安全隔離。CLI 仍可獨立使用；既有靜態網站模式只能人工輸入或匯入字幕。可執行 `python -m unittest discover -s tools -p 'test_*.py'` 檢查本機 HTTP 介面，或 `python tools/browser_transcription_smoke.py` 使用 Playwright 與合成影音驗證按鈕流程；兩者均不需要載入模型。
 
+本機服務會在上傳連線閒置 15 秒後結束該請求，服務關閉時嘗試中止當前轉錄。Windows 真實模型取消、衍生程序回收與長影音效能仍需測試，不能視為正式版保證。
+
 ### 本機影音自動轉錄（選用）
 
 已有 **SRT／WebVTT 逐字稿匯入**。想把 MP3、WAV、M4A、MP4、WebM 轉成逐字稿，可在個人電腦（不是網頁伺服器）以獨立 Python 環境安裝 `python -m pip install "faster-whisper==1.2.1" "av==16.1.0"`，然後執行：

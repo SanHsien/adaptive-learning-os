@@ -39,8 +39,27 @@ class LocalServer(ThreadingHTTPServer):
         self.active = None
         self.early_cancellations = {}
 
+    def server_close(self):
+        # Stop the child before closing the server; request threads own temp cleanup.
+        with self.lock:
+            job = self.active
+            if job is not None:
+                job['cancel'].set()
+                process = job['process']
+                if process is not None and process.poll() is None:
+                    try:
+                        process.terminate()
+                    except OSError:
+                        pass  # Already exited or inaccessible; still close the listener.
+        super().server_close()
+
 
 class Handler(SimpleHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        # A client that stops sending an advertised body must not own the only slot forever.
+        self.connection.settimeout(15)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -159,6 +178,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if len(content) > 100000:
                     return self._json(413, {'error': '逐字稿過長，請分段轉錄'})
                 return self._json(200, {'srt': content})
+        except TimeoutError:
+            return self._json(408, {'error': '影音上傳逾時'})
         except (OSError, ValueError):
             return self._json(500, {'error': '本機轉錄處理失敗'})
         finally:

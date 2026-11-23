@@ -72,6 +72,8 @@ IndexedDB v2 新增 `materials` store，版本寫入同一交易；版本完整�
 
 # 影音本機轉錄增量驗收（2026-11-23）
 
+2026-11-23：本機 HTTP 服務新增上傳 socket 15 秒閒置逾時及 `server_close()` 取消當前子程序。`python -m unittest discover -s tools -p 'test_*.py'` 12/12 通過，包含不完整上傳 Body 不佔用工作槽、關閉服務時發出取消與子程序終止通知；`npm test` 33/33 通過。這些是合成資料／mock 子程序驗證，尚未驗證 Windows 真 Whisper 子程序完全退出及長檔資源釋放。
+
 新增 `tools/test_local_server.py`：採合成 WAV、mock Whisper 子程序，測 localhost API 的工作階段來源、Host/Origin/Token、非法格式、取消先於上傳、靜態檔白名單及完成後工作狀態；不下載模型，也不包含真實家人資料。`python -u tools/browser_transcription_smoke.py` 使用 Chromium Headless Shell 與 mock Whisper，實際點按影音上傳、一鍵轉錄、校對、指定科目儲存及轉錄中切換另一位學習者取消舊任務：`PASS`，Python 退出碼 0。**尚未證實**長影音效能、取消時所有 Windows 真實子程序退出及真實教材轉錄品質；完成前 P0 保持未結案。
 
 2026-11-23：Windows SAPI（Microsoft Hanhan Desktop）產生短篇中文合成 WAV，以本機快取 `faster-whisper-small` 與隔離 `av 16.1.0` 執行 `python tools/transcribe_local.py`，退出碼 0，產生兩段有時間碼的 SRT：「今天我们学习中文。」及「这是人工合成的测试语音。」。原始合成語音為繁體中文，轉錄成簡體字；仍需人工校對。直接使用共用 Python 環境的 `av 19.0.2` 則遇 `av.open(metadata_errors=...)` 相容性錯誤；沒有更動共用 Python 套件。這是**真模型＋合成語音**驗收，不代表真實教材或長影音辨識品質已驗收。

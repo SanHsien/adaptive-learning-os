@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import socket
 import threading
 import time
 import unittest
@@ -62,6 +63,45 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request('POST', '/api/transcribe', WAV, {**self.auth(), 'X-Job-ID': 'bad'})[0], 400)
         self.assertEqual(self.request('POST', '/api/transcribe', WAV, {**self.auth(), 'X-Media-Extension': '.exe'})[0], 413)
         self.assertEqual(self.request('POST', '/api/transcribe', b'not wave', self.auth())[0], 415)
+
+    def test_incomplete_body_releases_slot(self):
+        headers = self.auth()
+        conn = socket.create_connection(('127.0.0.1', self.server.server_port), timeout=5)
+        try:
+            payload = (f'POST /api/transcribe HTTP/1.1\r\nHost: 127.0.0.1:{self.server.server_port}\r\n'
+                       f'Origin: {self.origin}\r\nX-Local-Token: {headers["X-Local-Token"]}\r\n'
+                       f'X-Job-ID: {headers["X-Job-ID"]}\r\nX-Media-Extension: .wav\r\n'
+                       'Content-Length: 100\r\nConnection: close\r\n\r\n').encode() + WAV
+            conn.sendall(payload)
+            conn.shutdown(socket.SHUT_WR)
+            response = conn.recv(4096)
+            self.assertIn(b'400', response.split(b'\r\n', 1)[0])
+        finally:
+            conn.close()
+        for _ in range(100):
+            if self.server.active is None:
+                break
+            time.sleep(.01)
+        self.assertIsNone(self.server.active)
+
+    def test_server_close_signals_active_job(self):
+        class FakeProcess:
+            def __init__(self):
+                self.terminated = False
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                self.terminated = True
+
+        isolated = LocalServer(('127.0.0.1', 0), Handler)
+        process = FakeProcess()
+        cancel = threading.Event()
+        isolated.active = {'cancel': cancel, 'process': process}
+        isolated.server_close()
+        self.assertTrue(cancel.is_set())
+        self.assertTrue(process.terminated)
 
     def test_cancel_before_post_is_bounded_and_prevents_launch(self):
         job_id = str(uuid.uuid4())
