@@ -248,11 +248,31 @@ def run():
             page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
             assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
             assert page.locator('#imagePanel').is_hidden()
-            # Cancel an eight-page OCR import by changing subjects; no stale preview may escape its scope.
+            # Instrument the real Tesseract workers without replacing their recognition implementation.
+            # Waiting for a recognize() entry is deterministic; a fixed sleep is not.
+            page.evaluate('''() => {
+                window.__ocrLifecycle = {started: 0, terminated: 0};
+                const originalCreateWorker = window.Tesseract.createWorker;
+                window.Tesseract.createWorker = async (...args) => {
+                    const worker = await originalCreateWorker(...args);
+                    const recognize = worker.recognize.bind(worker);
+                    const terminate = worker.terminate.bind(worker);
+                    worker.recognize = (...params) => {
+                        window.__ocrLifecycle.started++;
+                        return recognize(...params);
+                    };
+                    worker.terminate = (...params) => {
+                        window.__ocrLifecycle.terminated++;
+                        return terminate(...params);
+                    };
+                    return worker;
+                };
+            }''')
+            # Cancel an eight-page OCR import after real worker recognition begins.
             print('SMOKE: cancel eight-page scanned PDF on subject switch', flush=True)
             original_math = page.locator('#material').input_value()
             page.locator('#materialFile').set_input_files({'name': 'long-scanned.pdf', 'mimeType': 'application/pdf', 'buffer': sample_long_scanned_pdf()})
-            page.wait_for_timeout(350)
+            page.wait_for_function('window.__ocrLifecycle.started >= 1', timeout=60000)
             page.locator('#subjectName').fill('取消驗收科目')
             page.locator('#addSubject button').click()
             page.locator('#subject').select_option(label='取消驗收科目')
@@ -264,6 +284,23 @@ def run():
             page.get_by_text('測試甲 / 數學', exact=True).wait_for()
             assert page.locator('#material').input_value() == original_math
             assert 'ocr.png' in page.locator('#materialOrigin').inner_text()
+            page.wait_for_function('window.__ocrLifecycle.terminated >= 1', timeout=15000)
+            assert page.evaluate('window.__ocrLifecycle.terminated') == 1
+            # Repeat cancellation across learners; the second learner must not receive stale text.
+            print('SMOKE: cancel eight-page scanned PDF on learner switch', flush=True)
+            page.locator('#materialFile').set_input_files({'name': 'long-scanned.pdf', 'mimeType': 'application/pdf', 'buffer': sample_long_scanned_pdf()})
+            page.wait_for_function('window.__ocrLifecycle.started >= 2', timeout=60000)
+            create_learner(page, '取消驗收學習者')
+            create_subject(page, '獨立數學', '乙的獨立教材', '乙的獨立問題')
+            page.wait_for_timeout(1200)
+            assert page.locator('#material').input_value() == '乙的獨立教材'
+            assert 'ocr.png' not in page.locator('#materialOrigin').inner_text()
+            page.wait_for_function('window.__ocrLifecycle.terminated >= 2', timeout=15000)
+            assert page.evaluate('window.__ocrLifecycle.terminated') == 2
+            page.locator('#learner').select_option(label='測試甲')
+            page.locator('#subject').select_option(label='數學')
+            page.get_by_text('測試甲 / 數學', exact=True).wait_for()
+            assert page.locator('#material').input_value() == original_math
             assert not external_requests, f'Unexpected external network request: {external_requests[:5]}'
             # Restore DOCX to test that invalid files do not replace existing content.
             page.locator('#materialFile').set_input_files({'name': 'chapter.docx', 'mimeType': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'buffer': sample_docx()})

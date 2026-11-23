@@ -4,6 +4,10 @@
 
 2026-11-23：新增 OCR 連續兩次在辨識已開始後取消、第三次重新辨識成功的合成 Worker 測試，逐 Worker 檢查 `terminate()` 呼叫次數。這是 Node 模擬測試，不代表已量測瀏覽器內真實 Tesseract Worker 的取消時間或資源使用量。
 
+瀏覽器測試新增對真實 Tesseract `createWorker`、`recognize`、`terminate` 的非替代式計數包裝；測試須在 `recognize()` 確實啟動後才切換科目或學習者，確認舊教材未跨 scope 出現且 Worker 各終止一次。此計數不等於 Worker 終止耗時測量。
+
+2026-11-23：Chromium Headless Shell 149.0.7827.55 執行 `python -u tools/browser_smoke.py`，跨科及跨學習者兩輪取消均在真實 `recognize()` 進入後進行，均確認舊內容不越界且 `terminate()` 各一次；瀏覽器正常關閉、Python 退出碼 0。`npm ci`、`npm test`（31/31）、JS/Python 語法檢查與 `git diff --check` 通過。尚未量測實際資源釋放耗時與長時間反覆操作。
+
 執行 `npm ci`、`npm test` 及 `node --check` 檢查 `src/`、`tests/` 內 JavaScript。必測性質：不同 learner/subject 的教材與作答不可混查、不可跨 scope 修改、匯入建立新副本、無效備份拒絕、家教提示限單一 scope。
 
 ## 真實瀏覽器：已完成合成資料基本驗收（2026-11-22）
