@@ -125,3 +125,51 @@ test('取消後等待同一個 Worker 終止 Promise 完成才結束', async () 
     }
   }
 });
+
+test('連續取消辨識後可以重新執行成功，且每個 Worker 只終止一次', async () => {
+  const previous = {
+    createImageBitmap: globalThis.createImageBitmap,
+    document: globalThis.document,
+    Tesseract: globalThis.Tesseract
+  };
+  const started = [];
+  const workers = [];
+  globalThis.createImageBitmap = async () => ({width: 12, height: 12, close() {}});
+  globalThis.document = {createElement: () => ({getContext: () => ({fillRect() {}, drawImage() {}}), toBlob: cb => cb(new Blob(['image']))})};
+  globalThis.Tesseract = {createWorker: async () => {
+    const worker = {terminations: 0, reject: undefined};
+    workers.push(worker);
+    return {
+      recognize: () => {
+        if (workers.length === 3) return Promise.resolve({data: {text: '重新開始成功'}});
+        return new Promise((_, reject) => {
+          worker.reject = reject;
+          started[workers.length - 1]?.();
+        });
+      },
+      terminate: async () => {
+        worker.terminations++;
+        worker.reject?.(new Error('cancelled'));
+      }
+    };
+  }};
+  try {
+    for (let index = 0; index < 2; index++) {
+      let notifyStarted;
+      const enteredRecognition = new Promise(resolve => { notifyStarted = resolve; });
+      started.push(notifyStarted);
+      const controller = new AbortController();
+      const operation = recognizeImage(new Blob(['image']), controller.signal);
+      await enteredRecognition;
+      controller.abort();
+      await assert.rejects(operation, {name: 'AbortError'});
+    }
+    assert.equal(await recognizeImage(new Blob(['image'])), '重新開始成功');
+    assert.deepEqual(workers.map(worker => worker.terminations), [1, 1, 1]);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  }
+});
