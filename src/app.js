@@ -240,8 +240,9 @@ $('runOcr').addEventListener('click', () => safe(async () => {
 }));
 
 $('material').addEventListener('input', () => {
-  // Image OCR corrections and media transcripts must retain their source attribution.
-  if (pendingMaterialSource && !/^(image|audio|video)\//.test(pendingMaterialSource.type)) {
+  // Corrections to OCR, media transcripts and imported subtitle cues retain provenance.
+  if (pendingMaterialSource && !/^(image|audio|video)\//.test(pendingMaterialSource.type)
+      && !['application/x-subrip', 'text/vtt'].includes(pendingMaterialSource.type)) {
     pendingMaterialSource = null;
     $('materialOrigin').textContent = '已編輯檔案內容，將以手動教材儲存。';
   }

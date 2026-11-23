@@ -34,7 +34,7 @@
 
 ### 本機影音自動轉錄（選用）
 
-已有 **SRT／WebVTT 逐字稿匯入**。想把 MP3、WAV、M4A、MP4、WebM 轉成逐字稿，可在個人電腦（不是網頁伺服器）安裝 `python -m pip install faster-whisper`，然後執行：
+已有 **SRT／WebVTT 逐字稿匯入**。想把 MP3、WAV、M4A、MP4、WebM 轉成逐字稿，可在個人電腦（不是網頁伺服器）以獨立 Python 環境安裝 `python -m pip install "faster-whisper==1.2.1" "av==16.1.0"`，然後執行：
 
 ```powershell
 python tools/transcribe_local.py "C:\path\lesson.mp3" --model small --language zh

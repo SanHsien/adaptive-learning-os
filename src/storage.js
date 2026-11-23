@@ -96,7 +96,7 @@ export async function addSubject(learnerId, name, material = '') {
 
 export async function saveMaterial(learnerId, subjectId, material, source = null) {
   validateMaterial(material);
-  if (source !== null && (!source || typeof source !== 'object' || typeof source.name !== 'string' || source.name.length > 180 || !source.name.trim() || !['text/plain', 'text/markdown', 'text/csv', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/webp', 'audio/mpeg', 'audio/wav', 'audio/mp4', 'video/mp4', 'video/webm'].includes(source.type))) {
+  if (source !== null && (!source || typeof source !== 'object' || typeof source.name !== 'string' || source.name.length > 180 || !source.name.trim() || !['text/plain', 'text/markdown', 'text/csv', 'application/x-subrip', 'text/vtt', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/webp', 'audio/mpeg', 'audio/wav', 'audio/mp4', 'video/mp4', 'video/webm'].includes(source.type))) {
     throw new Error('教材檔案來源資訊無效');
   }
   ensureOwner(await getSubject(subjectId), learnerId);

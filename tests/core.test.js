@@ -27,6 +27,15 @@ test('匯入備份限制格式與作答欄位', () => {
   assert.throws(() => validateBackup({...backup,schema:'unknown'}));
 });
 
+test('字幕來源及版本允許備份，但拒絕未知 MIME', () => {
+  const source = {name:'lesson.srt', type:'application/x-subrip'};
+  const backup = {schema:'adaptive-learning-os/v1', learner:{name:'甲'}, subject:{name:'中文', material:'合成逐字稿', materialVersion:1, materialSource:source}, attempts:[], materialVersions:[{version:1, content:'合成逐字稿', source, contentHash:null, parserStatus:'confirmed', createdAt:'2026-11-23T00:00:00.000Z'}]};
+  assert.equal(validateBackup(backup).subjectName, '中文');
+  const vttSource = {name:'lesson.vtt', type:'text/vtt'};
+  assert.equal(validateBackup({...backup, subject:{...backup.subject, materialSource:vttSource}, materialVersions:[{...backup.materialVersions[0], source:vttSource}]}).subjectName, '中文');
+  assert.throws(() => validateBackup({...backup, subject:{...backup.subject, materialSource:{name:'invalid', type:'application/x-unknown'}}}), /教材來源無效/);
+});
+
 test('提示只包含指定家人科目與傳入紀錄', () => {
   const text = tutorPrompt({name:'甲'}, {name:'數學',material:'加法'}, [{question:'1+1',result:'correct',hints:0}]);
   assert.match(text,/甲/); assert.match(text,/加法/); assert.doesNotMatch(text,/乙/);

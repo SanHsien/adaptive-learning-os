@@ -180,6 +180,36 @@ def run():
             page.locator("#materialForm button").click()
             page.get_by_text("這個科目的教材已儲存", exact=False).wait_for()
             assert "chapter.md" in page.locator("#materialOrigin").inner_text()
+            print('SMOKE: SRT/VTT preview, rejection and learner isolation', flush=True)
+            srt = '1\n00:00:00,000 --> 00:00:01,000\n合成字幕第一句\n\n2\n00:00:01,000 --> 00:00:02,000\n合成字幕第二句\n'
+            page.locator('#materialFile').set_input_files({'name': 'lesson.srt', 'mimeType': 'application/x-subrip', 'buffer': srt.encode('utf-8')})
+            page.get_by_text('檔案內容已載入預覽', exact=False).wait_for()
+            assert page.locator('#material').input_value() == '合成字幕第一句\n合成字幕第二句'
+            page.locator('#material').fill('合成字幕第一句（校對）\n合成字幕第二句')
+            page.locator('#materialForm button').click()
+            page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
+            assert 'lesson.srt' in page.locator('#materialOrigin').inner_text()
+            with page.expect_download() as subtitle_export:
+                page.locator('#export').click()
+            subtitle_backup = json.loads(subtitle_export.value.path().read_text(encoding='utf-8'))
+            assert subtitle_backup['subject']['material'] == '合成字幕第一句（校對）\n合成字幕第二句'
+            assert subtitle_backup['subject']['materialSource']['name'] == 'lesson.srt'
+            saved_subtitle = page.locator('#material').input_value()
+            page.locator('#materialFile').set_input_files({'name': 'bad.srt', 'mimeType': 'application/x-subrip', 'buffer': '沒有時間碼'.encode('utf-8')})
+            page.get_by_text('逐字稿時間碼', exact=False).wait_for()
+            assert page.locator('#material').input_value() == saved_subtitle
+            assert 'lesson.srt' in page.locator('#materialOrigin').inner_text()
+            page.locator('#materialFile').set_input_files({'name': 'lesson.vtt', 'mimeType': 'text/vtt', 'buffer': 'WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n另一段字幕'.encode('utf-8')})
+            page.get_by_text('檔案內容已載入預覽', exact=False).wait_for()
+            assert page.locator('#material').input_value() == '另一段字幕'
+            create_learner(page, '字幕隔離學習者')
+            create_subject(page, '英文', '隔離教材', '隔離問題')
+            assert page.locator('#material').input_value() == '隔離教材'
+            page.locator('#learner').select_option(label='測試甲')
+            page.locator('#subject').select_option(label='數學')
+            page.get_by_text('測試甲 / 數學', exact=True).wait_for()
+            assert page.locator('#material').input_value() == saved_subtitle
+            assert 'lesson.srt' in page.locator('#materialOrigin').inner_text()
             for name, mime, payload, expected in [
                 ('chapter.pdf', 'application/pdf', sample_pdf(), 'PDF chapter basics'),
                 ('chapter.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', sample_docx(), 'DOCX chapter basics'),
