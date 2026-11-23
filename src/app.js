@@ -1,6 +1,6 @@
 import { normalizeName, reviewDue, evidenceLevel, tutorPrompt } from './core.js';
 import { listLearners, listSubjects, getLearner, getSubject, addLearner, addSubject, saveMaterial, listMaterialVersions, listAttempts, addAttempt, exportScope, importIsolated } from './storage.js';
-import { parseMaterialFile, validateImageFile, validateMediaFile } from './material-import.js';
+import { parseMaterialFile, parseSubtitle, validateImageFile, validateMediaFile } from './material-import.js';
 import { recognizeImage } from './ocr.js';
 
 const $ = id => document.getElementById(id);
@@ -12,9 +12,14 @@ let importGeneration = 0;
 let imagePreviewUrl = null;
 let mediaPreviewUrl = null;
 let pendingImageFile = null;
+let pendingMediaFile = null;
 let activeImportController = null;
+let activeTranscription = null;
 
 function cancelImport() {
+  activeTranscription?.cancel();
+  activeTranscription = null;
+  if (document.getElementById('runTranscription')) $('runTranscription').disabled = false;
   activeImportController?.abort();
   activeImportController = null;
 }
@@ -28,6 +33,7 @@ function clearImagePreview() {
 }
 
 function clearMediaPreview() {
+  pendingMediaFile = null;
   if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
   mediaPreviewUrl = null;
   $('mediaPreview').pause();
@@ -177,6 +183,7 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     const source = await validateImageFile(file);
     if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇圖片');
     clearImagePreview();
+    clearMediaPreview();
     imagePreviewUrl = URL.createObjectURL(file);
     $('imagePreview').src = imagePreviewUrl;
     $('imagePanel').hidden = false;
@@ -198,9 +205,10 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     $('mediaPreview').setAttribute('aria-label', source.name);
     $('mediaPanel').hidden = false;
     pendingMaterialSource = source;
+    pendingMediaFile = file;
     $('material').value = '';
     $('materialOrigin').textContent = `影音來源：${source.name}（尚無逐字稿；可手動輸入或另行匯入文字逐字稿）`;
-    notify('影音僅暫時播放。可自行輸入逐字稿，或用本機轉錄工具產生 SRT 並重新匯入後校對。');
+    notify('影音僅暫時播放。可按「本機一鍵轉錄」或自行輸入逐字稿，完成後請校對。');
     return;
   }
   const {content, source} = await parseMaterialFile(file, controller.signal);
@@ -213,6 +221,55 @@ $('materialFile').addEventListener('change', event => safe(async () => {
   notify('檔案內容已載入預覽；確認後請按儲存教材。');
   } finally {
     if (activeImportController === controller) activeImportController = null;
+  }
+}));
+
+const transcriptionButton = document.createElement('button');
+transcriptionButton.id = 'runTranscription';
+transcriptionButton.type = 'button';
+transcriptionButton.className = 'button secondary';
+transcriptionButton.textContent = '本機一鍵轉錄（需啟動本機服務）';
+$('mediaPanel').append(transcriptionButton);
+$('mediaPanel').querySelector('p').textContent = '影音僅供本次播放，不永久保存原始檔。啟動本機 Python 服務後可按「本機一鍵轉錄」；完成後請校對再儲存。';
+
+$('runTranscription').addEventListener('click', () => safe(async () => {
+  if (activeTranscription) return;
+  const file = pendingMediaFile;
+  if (!file || !learnerId || !subjectId) throw new Error('請先選擇影音教材及學習空間');
+  const owner = learnerId, course = subjectId, generation = importGeneration;
+  const controller = new AbortController();
+  const jobId = crypto.randomUUID();
+  let token = null;
+  const cancel = () => {
+    controller.abort();
+    if (token) fetch('/api/transcribe', {method: 'DELETE', headers: {'X-Local-Token': token, 'X-Job-ID': jobId}}).catch(() => {});
+  };
+  activeTranscription = {cancel};
+  $('runTranscription').disabled = true;
+  notify('正在本機轉錄影音；切換學習空間會取消任務。');
+  try {
+    const session = await fetch('/api/session', {signal: controller.signal});
+    if (!session.ok) throw new Error('請改用 python tools/local_server.py 啟動本機轉錄網站');
+    token = (await session.json()).token;
+    controller.signal.throwIfAborted();
+    const response = await fetch('/api/transcribe', {
+      method: 'POST', signal: controller.signal, body: file,
+      headers: {'Content-Type': 'application/octet-stream', 'X-Local-Token': token,
+        'X-Job-ID': jobId, 'X-Media-Extension': `.${file.name.toLowerCase().split('.').pop()}`}
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '轉錄失敗');
+    const content = parseSubtitle(result.srt, 'srt');
+    if (content.length > 100000) throw new Error('逐字稿超過教材字數上限，請拆分影音');
+    if (controller.signal.aborted || owner !== learnerId || course !== subjectId || generation !== importGeneration || file !== pendingMediaFile) return;
+    $('material').value = content;
+    $('materialOrigin').textContent = `本機轉錄待校對：${file.name}（按儲存教材才會寫入）`;
+    notify('本機轉錄完成。請人工校對，再按「儲存教材」。');
+  } finally {
+    if (activeTranscription?.cancel === cancel) {
+      activeTranscription = null;
+      $('runTranscription').disabled = false;
+    }
   }
 }));
 

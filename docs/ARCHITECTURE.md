@@ -31,6 +31,18 @@
 
 ## 模組職責
 
+可選用的本機轉錄資料流（未經人工儲存不進 IndexedDB）：
+
+```text
+Browser (learnerId + subjectId) -> 127.0.0.1:4173 (session token)
+  -> POST media + job UUID -> temporary media -> Whisper subprocess
+  -> SRT response -> subtitle parser -> editable preview
+  -> user confirmation -> scoped IndexedDB material/version
+  \-> scope switch -> DELETE job -> terminate subprocess + cleanup
+```
+
+`tools/local_server.py` 同時提供白名單靜態資源及短暫轉錄 API；每個任務只能有一個子程序，取消與錯誤會清理暫存，並以取消旗標防止舊資料交付。來源／權杖防護不是帳號級授權，不可公開部署。
+
 影音增量（2026-11-23）：`tools/transcribe_local.py` 是獨立的本機 CLI，可選用 `faster-whisper` 轉錄為 SRT；不連接瀏覽器，也不保存或上傳影音。`material-import.js` 解析 SRT／WebVTT 並將文字、來源送回現有的 `app.js` 校對流程，由 `storage.js` 依當前 `learnerId/subjectId` 驗證歸屬與版本化。原始媒體不進 IndexedDB；若使用 CLI 產生的 SRT，該字幕檔由使用者在自己的裝置保管。
 
 | 模組 | 職責 | 不做的事 |

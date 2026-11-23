@@ -32,6 +32,12 @@
 
 ## 測試
 
+### 網頁內一鍵轉錄（本機測試版）
+
+在專案根目錄的獨立 Python 環境安裝 `faster-whisper==1.2.1` 及 `av==16.1.0`，執行 `python tools/local_server.py`，再開啟 `http://127.0.0.1:4173`（**不要**使用 `localhost` 或另開 `npx http-server`）。選擇家人及科目、匯入 100 MB 以內的 MP3/WAV/M4A/MP4/WebM，點「本機一鍵轉錄」。產生文字預覽後請人工校對，再明確按「儲存教材」。切換人、科目或檔案會取消舊任務；原始影音只寫入系統暫存資料夾，工作結束會清理。此流程需要本機 Python 程序保持執行，不會自動安裝模型；第一次載入模型可能連線下載權重。請不要用真實敏感教材測試。
+
+這是單機測試功能，不提供公開服務或帳號安全隔離。CLI 仍可獨立使用；既有靜態網站模式只能人工輸入或匯入字幕。可執行 `python -m unittest discover -s tools -p 'test_*.py'` 檢查本機 HTTP 介面，或 `python tools/browser_transcription_smoke.py` 使用 Playwright 與合成影音驗證按鈕流程；兩者均不需要載入模型。
+
 ### 本機影音自動轉錄（選用）
 
 已有 **SRT／WebVTT 逐字稿匯入**。想把 MP3、WAV、M4A、MP4、WebM 轉成逐字稿，可在個人電腦（不是網頁伺服器）以獨立 Python 環境安裝 `python -m pip install "faster-whisper==1.2.1" "av==16.1.0"`，然後執行：
