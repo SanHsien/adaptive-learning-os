@@ -112,12 +112,27 @@ def main():
                 cpu_by_pid = {}
                 sampler_stop = threading.Event()
                 sampler = None
+                resource_lock = threading.Lock()
+                timestamps = {}
+
+                def sample_until_stopped():
+                    while not sampler_stop.is_set():
+                        memory, count = sample_process_tree(process_holder['process'].pid, cpu_by_pid)
+                        with resource_lock:
+                            resource['peak_bytes'] = max(resource['peak_bytes'], memory)
+                            resource['peak_processes'] = max(resource['peak_processes'], count)
+                            resource['samples'] += 1
+                        sampler_stop.wait(0.1)
 
                 def launch(command, **kwargs):
+                    nonlocal sampler
                     instrumented = [str(interpreter), str(wrapper), str(marker), *command[1:]]
                     process = original_popen(instrumented, **kwargs)
                     process_holder['process'] = process
                     process_holder['temp'] = Path(command[command.index('--output') + 1]).parent
+                    timestamps['launched'] = time.monotonic()
+                    sampler = threading.Thread(target=sample_until_stopped, daemon=True)
+                    sampler.start()
                     return process
 
                 def upload():
@@ -137,18 +152,13 @@ def main():
                                 raise AssertionError('Whisper finished or failed before first-segment signal')
                             time.sleep(0.1)
                         assert marker.exists(), 'No decoded segment observed within 100 seconds'
+                        timestamps['first_segment_observed'] = time.monotonic()
                         process = process_holder['process']
                         assert process.poll() is None, 'Whisper exited before inference cancellation'
-                        def sample_until_stopped():
-                            while not sampler_stop.is_set():
-                                memory, count = sample_process_tree(process.pid, cpu_by_pid)
-                                resource['peak_bytes'] = max(resource['peak_bytes'], memory)
-                                resource['peak_processes'] = max(resource['peak_processes'], count)
-                                resource['samples'] += 1
-                                sampler_stop.wait(0.1)
-
-                        sampler = threading.Thread(target=sample_until_stopped, daemon=True)
-                        sampler.start()
+                        with resource_lock:
+                            before_cancel_samples = resource['samples']
+                            before_cancel_peak_bytes = resource['peak_bytes']
+                        assert before_cancel_samples > 0, 'No samples collected during model startup/inference'
                         assert request('DELETE', job_id)[0] == 200
                         worker.join(30)
                         assert not worker.is_alive(), 'Cancelled HTTP request did not return'
@@ -160,6 +170,7 @@ def main():
                             time.sleep(0.05)
                         assert not process_holder['temp'].exists(), 'Temporary media folder retained'
                         assert server.active is None, 'Active task slot retained'
+                        timestamps['cancel_cleanup_complete'] = time.monotonic()
                         sampler_stop.set()
                         sampler.join(10)
                         assert not sampler.is_alive(), 'Resource sampler did not exit'
@@ -167,9 +178,13 @@ def main():
                         print(json.dumps({
                             'cycle': cycle + 1,
                             'sampled_peak_tree_working_set_mib': round(resource['peak_bytes'] / 1048576, 1),
+                            'sampled_pre_cancel_peak_tree_working_set_mib': round(before_cancel_peak_bytes / 1048576, 1),
                             'sampled_process_tree_cpu_seconds': round(sum(cpu_by_pid.values()), 2),
                             'max_sampled_processes': resource['peak_processes'],
                             'samples': resource['samples'],
+                            'samples_before_cancel': before_cancel_samples,
+                            'launch_to_first_segment_observed_seconds': round(timestamps['first_segment_observed'] - timestamps['launched'], 2),
+                            'first_segment_observed_to_cleanup_seconds': round(timestamps['cancel_cleanup_complete'] - timestamps['first_segment_observed'], 2),
                             'child_exited': process.poll() is not None,
                             'temp_removed': not process_holder['temp'].exists(),
                         }), flush=True)

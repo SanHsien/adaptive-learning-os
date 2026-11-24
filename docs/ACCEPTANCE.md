@@ -103,3 +103,9 @@ IndexedDB v2 新增 `materials` store，版本寫入同一交易；版本完整�
 Chromium 148 Headless Shell E2E 退出碼 0，新增驗證 SRT 解析、人工校對後來源保留、儲存與 JSON 備份來源、非法 SRT 拒絕、WebVTT 解析、跨學習者切換清除未儲存字幕及切回原教材。修復 `src/storage.js`、`src/core.js` 漏列字幕 MIME 類型與 `src/app.js` 校對字幕時意外清除來源。全部使用合成資料。
 
 `python -m unittest discover -s tools -p 'test_*.py'`：SRT 產生器測試，含時間碼、空字幕、輸出既存拒絕。`npm test`：SRT/VTT 檔案驗證、字幕時間碼與來源保留。這些合成測試**不代表**真實 Whisper 模型語音辨識或瀏覽器端一鍵轉錄已通過；自動轉錄需另行安裝 `faster-whisper` 並使用真實影音人工校對驗收。
+
+## 2026-11-25 Whisper 取消資源觀測
+
+`tools/real_whisper_inference_cancel_smoke.py --cycles 3` 從子程序啟動後每 0.1 秒取樣程序樹，量測首次解碼前及取消清理階段的時間、取消前與全窗 Working Set 取樣峰值。每輪仍核對 HTTP DELETE 200／POST 409、子程序退出、暫存目錄刪除及工作槽釋放。CPU 為累積程序時間，無法代表分階段 CPU 成本。孤兒程序及長期負載仍待驗收。
+
+2026-11-25 Windows 真實 faster-whisper small 三輪合成音訊驗證退出碼 0，三輪均 PASS。全窗 Working Set 取樣峰值依序為 1029.4／1027.2／1028.5 MiB，首次解碼前取樣數 312／288／266，啟動至首次解碼觀察約 43.77／41.61／37.45 秒，首次解碼觀察至清理約 0.91／1.11／1.05 秒；每輪子程序均退出、暫存目錄均清除。同期 Python unittest 16/16、Node 33/33 通過。
