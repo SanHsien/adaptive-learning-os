@@ -40,7 +40,7 @@
 
 本機服務會在上傳連線閒置 15 秒後結束該請求，服務關閉時嘗試中止當前轉錄。Windows 已以合成語音通過真正 Whisper Small 的網頁轉錄、人工校對儲存、跨學習者隔離 E2E（`python tools/browser_real_transcription_smoke.py`，需獨立 `.venv` 和 Windows SAPI）。另可選用 `python -u tools/real_whisper_inference_cancel_smoke.py --cycles 2` 在同一服務連續兩輪驗證真模型產出第一段字幕後的取消、暫存清理及任務槽恢復；預設 `--cycles 1`。長影音資源峰值與持續運行穩定性仍需測試，不能視為正式版保證。
 
-Windows 可額外執行 `python -u tools/real_whisper_resource_smoke.py`，以約 45 秒本機合成中文語音量測實際 Whisper CPU 時間及整個 Python 程序樹的記憶體峰值。需有專案 `.venv` 的 faster-whisper small 模型與 Windows SAPI；輸出是單次測試數據，並非強制資源上限。原始合成音訊及字幕於測試結束後刪除。
+Windows 可額外執行 `python -u tools/real_whisper_resource_smoke.py --duration-seconds 90`，以約 90 秒本機合成中文語音量測實際 Whisper CPU 時間及整個 Python 程序樹的記憶體峰值。可選擇 30 至 180 秒，預設為 45 秒。需有專案 `.venv` 的 faster-whisper small 模型與 Windows SAPI；輸出是單次測試數據，並非強制資源上限。原始合成音訊及字幕於測試結束後刪除。
 
 ### 本機影音自動轉錄（選用）
 

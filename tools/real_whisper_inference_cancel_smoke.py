@@ -44,7 +44,7 @@ runpy.run_path(entry, run_name='__main__')
 '''
 
 
-def synthetic_audio(target):
+def synthetic_audio(target, duration_seconds=45):
     with tempfile.TemporaryDirectory(prefix='adaptive-speech-') as folder:
         short = Path(folder) / 'speech.wav'
         script = (
@@ -59,7 +59,7 @@ def synthetic_audio(target):
         with wave.open(str(short), 'rb') as reader:
             params = reader.getparams()
             frames = reader.readframes(reader.getnframes())
-        repetitions = max(2, int(45 * params.framerate / (len(frames) / (params.sampwidth * params.nchannels))))
+        repetitions = max(2, int(duration_seconds * params.framerate / (len(frames) / (params.sampwidth * params.nchannels))))
         with wave.open(str(target), 'wb') as writer:
             writer.setparams(params)
             writer.writeframes(frames * repetitions)

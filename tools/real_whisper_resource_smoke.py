@@ -3,6 +3,7 @@
 Outputs only process measurements. The synthetic media and transcript are temporary.
 """
 
+import argparse
 import ctypes
 import json
 import os
@@ -103,6 +104,9 @@ def sample_process_tree(root_pid, cpu_by_pid):
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Sample real Whisper process-tree resources')
+    parser.add_argument('--duration-seconds', type=int, default=45, choices=range(30, 181), metavar='30..180')
+    options = parser.parse_args()
     if os.name != 'nt':
         raise RuntimeError('Windows process counters required')
     interpreter = ROOT / '.venv' / 'Scripts' / 'python.exe'
@@ -111,7 +115,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='adaptive-whisper-resource-') as directory:
         source = Path(directory) / 'synthetic.wav'
         target = Path(directory) / 'output.srt'
-        synthetic_audio(source)
+        synthetic_audio(source, options.duration_seconds)
         command = [str(interpreter), str(ROOT / 'tools' / 'transcribe_local.py'),
                    str(source), '--output', str(target), '--model', 'small']
         process = subprocess.Popen(command, stdout=subprocess.DEVNULL,
@@ -124,8 +128,8 @@ def main():
         samples = 0
         try:
             while process.poll() is None:
-                if time.monotonic() - start > 180:
-                    raise TimeoutError('Whisper transcription exceeded 180 seconds')
+                if time.monotonic() - start > max(180, options.duration_seconds * 4):
+                    raise TimeoutError('Whisper transcription exceeded the bounded runtime')
                 memory_bytes, count = sample_process_tree(process.pid, cpu_by_pid)
                 peak_bytes = max(peak_bytes, memory_bytes)
                 peak_processes = max(peak_processes, count)
@@ -137,6 +141,7 @@ def main():
             assert target.is_file() and target.stat().st_size > 0, 'No SRT produced'
             print(json.dumps({
                 'result': 'PASS', 'workload': 'synthetic repeated Chinese speech',
+                'requested_audio_seconds': options.duration_seconds,
                 'wall_seconds': round(time.monotonic() - start, 2),
                 'sampled_process_tree_cpu_seconds': round(sum(cpu_by_pid.values()), 2),
                 'sampled_peak_tree_working_set_mib': round(peak_bytes / 1048576, 1),
