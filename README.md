@@ -38,7 +38,7 @@
 
 這是單機測試功能，不提供公開服務或帳號安全隔離。CLI 仍可獨立使用；既有靜態網站模式只能人工輸入或匯入字幕。可執行 `python -m unittest discover -s tools -p 'test_*.py'` 檢查本機 HTTP 介面，或 `python tools/browser_transcription_smoke.py` 使用 Playwright 與合成影音驗證按鈕流程；兩者均不需要載入模型。
 
-本機服務會在上傳連線閒置 15 秒後結束該請求，服務關閉時嘗試中止當前轉錄。Windows 已以合成語音通過真正 Whisper Small 的網頁轉錄、人工校對儲存、跨學習者隔離 E2E（`python tools/browser_real_transcription_smoke.py`，需獨立 `.venv` 和 Windows SAPI）；真模型取消、衍生程序回收與長影音效能仍需測試，不能視為正式版保證。
+本機服務會在上傳連線閒置 15 秒後結束該請求，服務關閉時嘗試中止當前轉錄。Windows 已以合成語音通過真正 Whisper Small 的網頁轉錄、人工校對儲存、跨學習者隔離 E2E（`python tools/browser_real_transcription_smoke.py`，需獨立 `.venv` 和 Windows SAPI）。另可選用 `python -u tools/real_whisper_inference_cancel_smoke.py` 驗證真模型產出第一段字幕後的取消及暫存清理；長影音資源峰值、衍生程序回收與持續運行穩定性仍需測試，不能視為正式版保證。
 
 ### 本機影音自動轉錄（選用）
 
