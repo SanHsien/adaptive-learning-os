@@ -51,6 +51,36 @@ class ServerTests(unittest.TestCase):
                     stop_process_tree(parent)
                     parent.wait(timeout=10)
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows process-tree counters')
+    def test_resource_sampler_includes_real_descendant(self):
+        from real_whisper_resource_smoke import descendant_pids, sample_process_tree
+
+        with __import__('tempfile').TemporaryDirectory() as directory:
+            marker = Path(directory) / 'child.pid'
+            program = (
+                'import subprocess,sys,time,pathlib; '
+                'child=subprocess.Popen([sys.executable,"-c","import time;time.sleep(30)"]); '
+                'pathlib.Path(sys.argv[1]).write_text(str(child.pid)); '
+                'time.sleep(30)'
+            )
+            parent = subprocess.Popen([sys.executable, '-c', program, str(marker)],
+                                      creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+            try:
+                deadline = time.monotonic() + 10
+                while not marker.exists() and time.monotonic() < deadline:
+                    time.sleep(.05)
+                self.assertTrue(marker.exists(), 'child did not start')
+                descendant_pid = int(marker.read_text())
+                self.assertIn(descendant_pid, descendant_pids(parent.pid))
+                usage = {}
+                memory, count = sample_process_tree(parent.pid, usage)
+                self.assertGreaterEqual(count, 2)
+                self.assertGreater(memory, 0)
+                self.assertIn(descendant_pid, usage)
+            finally:
+                stop_process_tree(parent)
+                parent.wait(timeout=10)
+
     @classmethod
     def setUpClass(cls):
         cls.server = LocalServer(('127.0.0.1', 0), Handler)
