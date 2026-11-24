@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -12,13 +13,44 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-from local_server import Handler, LocalServer
+from local_server import Handler, LocalServer, stop_process_tree
 
 
 WAV = b'RIFF\x24\x00\x00\x00WAVEfmt '
 
 
 class ServerTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows process-tree termination')
+    def test_cancel_terminates_descendant_process(self):
+        """A real child that starts a grandchild must leave neither running."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'descendant.pid'
+            program = (
+                'import subprocess,sys,time,pathlib; '
+                'child=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"]); '
+                'pathlib.Path(sys.argv[1]).write_text(str(child.pid)); '
+                'time.sleep(60)'
+            )
+            parent = subprocess.Popen([sys.executable, '-c', program, str(marker)],
+                                      creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+            try:
+                deadline = time.monotonic() + 10
+                while not marker.exists() and time.monotonic() < deadline:
+                    time.sleep(.05)
+                self.assertTrue(marker.exists(), 'descendant did not start')
+                descendant_pid = int(marker.read_text())
+                stop_process_tree(parent)
+                parent.wait(timeout=10)
+                inspected = subprocess.run(['tasklist', '/FI', f'PID eq {descendant_pid}', '/FO', 'CSV', '/NH'],
+                                           capture_output=True, text=True, timeout=10)
+                self.assertNotIn(f'"{descendant_pid}"', inspected.stdout,
+                                 'descendant survived cancellation')
+            finally:
+                if parent.poll() is None:
+                    stop_process_tree(parent)
+                    parent.wait(timeout=10)
+
     @classmethod
     def setUpClass(cls):
         cls.server = LocalServer(('127.0.0.1', 0), Handler)

@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import secrets
 import subprocess
 import sys
@@ -16,6 +17,19 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 MAX_BYTES = 100 * 1024 * 1024
 EXTENSIONS = {'.mp3', '.wav', '.m4a', '.mp4', '.webm'}
+SYSTEM_POPEN = subprocess.Popen
+
+
+def stop_process_tree(process):
+    """Stop the active transcription process and its descendants on Windows."""
+    if process is None or process.poll() is not None:
+        return
+    if os.name == 'nt' and getattr(process, 'pid', None):
+        killer = SYSTEM_POPEN(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        killer.communicate(timeout=10)
+    if process.poll() is None:
+        process.terminate()
 
 
 def valid_media(ext, header):
@@ -48,8 +62,8 @@ class LocalServer(ThreadingHTTPServer):
                 process = job['process']
                 if process is not None and process.poll() is None:
                     try:
-                        process.terminate()
-                    except OSError:
+                        stop_process_tree(process)
+                    except (OSError, subprocess.TimeoutExpired):
                         pass  # Already exited or inaccessible; still close the listener.
         super().server_close()
 
@@ -160,12 +174,16 @@ class Handler(SimpleHTTPRequestHandler):
                 with self.server.lock:
                     if job['cancel'].is_set():
                         return self._json(409, {'error': '轉錄已取消'})
-                    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                               creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
                     job['process'] = process
                 try:
                     _, errors = process.communicate(timeout=1800)
                 except subprocess.TimeoutExpired:
-                    process.kill()
+                    try:
+                        stop_process_tree(process)
+                    except (OSError, subprocess.TimeoutExpired):
+                        process.kill()
                     process.communicate()
                     return self._json(504, {'error': '轉錄逾時，已終止'})
                 if job['cancel'].is_set():
@@ -200,7 +218,10 @@ class Handler(SimpleHTTPRequestHandler):
             if job and job['id'] == job_id:
                 job['cancel'].set()
                 if job['process'] and job['process'].poll() is None:
-                    job['process'].terminate()
+                    try:
+                        stop_process_tree(job['process'])
+                    except (OSError, subprocess.TimeoutExpired):
+                        job['process'].terminate()
             else:
                 now = time.monotonic()
                 self.server.early_cancellations = {key: expiry for key, expiry in self.server.early_cancellations.items() if expiry > now}

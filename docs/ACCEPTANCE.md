@@ -72,6 +72,8 @@ IndexedDB v2 新增 `materials` store，版本寫入同一交易；版本完整�
 
 # 影音本機轉錄增量驗收（2026-11-23）
 
+2026-11-24：Windows localhost Whisper 子程序取消、逾時及關閉路徑使用 `taskkill /T /F` 對仍存活的根程序執行樹狀終止。新增真實 Python 父程序衍生睡眠子程序測試，取消後檢查兩者退出；`python -m unittest discover -s tools -p 'test_*.py'` 14/14、`npm test` 33/33 通過。仍待更長影音的 CPU／記憶體峰值及多次取消壓力測量。
+
 2026-11-24：`python -u tools/real_whisper_inference_cancel_smoke.py`（Windows，需 `.venv` faster-whisper small 模型）使用約 45 秒 SAPI 合成中文語音，測試用 wrapper 在 Whisper 真實生成第一個 segment 時觸發 marker，確認子程序仍執行後立即 DELETE 取消。最終結果 PASS、exit 0，回傳 HTTP 409、Whisper 子程序退出、暫存資料夾移除、單一任務槽釋放。曾因測試 wrapper 的 marker 路徑錯誤無法觀測，修正後重跑才通過。此驗收覆蓋首段推論後取消，仍未測量連續長影音的記憶體／CPU 峰值、所有子孫程序與長時間重複執行穩定性。
 
 2026-11-24：執行 `python -u tools/real_whisper_cancel_smoke.py`，以 `.venv` 真正啟動 Whisper 子程序、30 秒合成靜音 WAV 測試取消。結果 `PASS`、exit 0，驗證啟動後取消、HTTP 409、子程序退出、暫存資料夾清除、下一次合成工作可成功；另執行 `npm test` 33/33、`python -m unittest discover -s tools -p 'test_*.py'` 13/13、`py_compile` 及 `git diff --check` 通過。子程序在啟動後約 0.3 秒被取消，尚未觀測確切 Whisper 推論起點；仍須建立推論階段可觀測的長影音取消、子孫程序及資源峰值驗收。
