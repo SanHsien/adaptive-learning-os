@@ -20,6 +20,8 @@
 
 ## 近期：可直接開始
 
+2026-11-24：`tools/real_whisper_inference_cancel_smoke.py` 新增 `--cycles {1,2,3}`（預設 1），可在同一 localhost 服務中重複執行真實 Whisper small 模型首次解碼段落後的取消。以本機合成中文音訊執行 `--cycles 2`，兩輪皆通過且程序退出碼 0，每輪確認 HTTP DELETE 200、原上傳請求 409、Whisper 子程序結束、暫存目錄刪除、任務槽釋放；單次資源峰值與較長影音仍需另測，P0 持續進行中。
+
 2026-11-24：新增同一 localhost 服務連續三次真實 OS 子程序取消整合測試，每次驗證 HTTP 409／DELETE 200、程序退出、暫存目錄清理與任務槽釋放，再驗證後續合成轉錄成功。Python 16/16 通過。此項為不載入模型的短循環測試；長影音與真正 Whisper 多次取消壓力仍待完成，P0 持續進行中。
 
 2026-11-24：新增可選用 `tools/real_whisper_resource_smoke.py`，以 Windows API 取樣 Python 啟動程序及其子程序樹的 Working Set 與 CPU 時間，避免只量到啟動器。使用本機 Whisper small、約 45 秒合成中文語音，實測轉錄 44.32 秒、程序樹 Working Set 取樣峰值 1025.4 MiB、取樣累計 CPU 165.41 秒、最多 2 個程序（154 次取樣）。數據僅適用本次 Windows 測試環境，不代表硬性資源限制；長於此工作負載的影音、連續取消壓力與跨硬體驗收仍待完成，P0 持續進行。

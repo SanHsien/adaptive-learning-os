@@ -72,6 +72,8 @@ IndexedDB v2 新增 `materials` store，版本寫入同一交易；版本完整�
 
 # 影音本機轉錄增量驗收（2026-11-23）
 
+2026-11-24：擴充 `tools/real_whisper_inference_cancel_smoke.py`，可使用 `--cycles 2` 在同一 LocalServer 執行兩輪真實 Whisper small 推論取消，使用 Windows SAPI 合成語音。兩輪皆於第一個已解碼 segment 產生後觸發取消、HTTP DELETE 回傳 200、上傳原請求回傳 409、子程序退出、暫存目錄清除、任務槽釋放。實測印出 `PASS` 兩次且 Python 退出碼 0。測試仍不涵蓋多小時影音、跨硬體資源上限或真實家人教材。
+
 2026-11-24：`tools/test_local_server.py` 增加同一 HTTP 服務連續三輪真實 Python 子程序取消與恢復測試。每輪檢查併行請求 409、DELETE 200、取消請求 409、子程序結束、暫存資料夾消失及任務槽釋放，最後以 mock 成功轉錄確認服務恢復。Python unittest 16/16 通過。這不涵蓋真實 Whisper 模型多次長影音取消，仍須獨立驗收。
 
 2026-11-24：新增 `python -u tools/real_whisper_resource_smoke.py` 可選用 Windows 真模型資源量測。先前僅量啟動程序取得 4.8 MiB 等異常數字，已改為 Toolhelp32 追蹤整個程序樹，並用 Windows Process API 分別量測 Working Set 與 CPU 時間。約 45 秒 SAPI 合成中文語音以 faster-whisper small CPU int8 轉錄，退出碼 0，耗時 44.32 秒、154 次取樣、CPU 累積 165.41 秒、取樣記憶體峰值 1025.4 MiB、最多同時 2 個程序。CPU 是每程序觀測到的最高累積值合計，Working Set 是瞬時樹狀合計取最大值，不包含其他系統程序及模型快取；需另測多次取消、較長影音、跨硬體與資源上限。
