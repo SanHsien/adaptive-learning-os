@@ -20,6 +20,8 @@
 
 ## 近期：可直接開始
 
+2026-11-25：CI `45505627385` 顯示 `test_real_child_cancel_cleanup_and_next_job` 偶發在 HTTP 409 回應後立刻檢查工作槽。改為沿用現有 `wait_for_available_slot()` 五秒有界等待，確保 Handler `finally` 完成後才檢查下一任務。待後續 CI 複核。
+
 2026-11-25：Whisper 真模型取消 smoke 的程序樹資源監控已提前至子程序啟動後，新增取消前記憶體取樣峰值、取消前樣本數，以及啟動至首次解碼與解碼至清理的耗時。約 0.1 秒間隔取樣可能漏掉瞬間峰值，根程序提前退出後的孤兒程序與長期壓力仍待驗收；P0 持續進行中。
 
 2026-11-24：`dabccb5` 的 Linux CI 於 `test_repeated_real_child_cancel_and_recovery` 偶發失敗，HTTP 回應完成時 `Handler.do_POST()` 的 `finally` 尚可能未釋放 `server.active`。Python 整合測試改以有界等待確認前一次工作槽釋放，避免跨測試污染；後續依新提交的 CI 實測確認。

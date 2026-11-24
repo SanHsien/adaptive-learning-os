@@ -106,6 +106,8 @@ Chromium 148 Headless Shell E2E 退出碼 0，新增驗證 SRT 解析、人工�
 
 ## 2026-11-25 Whisper 取消資源觀測
 
+CI `45505627385` 揭露單次真 OS 子程序取消整合測試的 Handler `finally` 工作槽釋放競爭，單次測試改用既有五秒有界等待；等待超時仍失敗，需由更新後 CI 複核。
+
 `tools/real_whisper_inference_cancel_smoke.py --cycles 3` 從子程序啟動後每 0.1 秒取樣程序樹，量測首次解碼前及取消清理階段的時間、取消前與全窗 Working Set 取樣峰值。每輪仍核對 HTTP DELETE 200／POST 409、子程序退出、暫存目錄刪除及工作槽釋放。CPU 為累積程序時間，無法代表分階段 CPU 成本。孤兒程序及長期負載仍待驗收。
 
 2026-11-25 Windows 真實 faster-whisper small 三輪合成音訊驗證退出碼 0，三輪均 PASS。全窗 Working Set 取樣峰值依序為 1029.4／1027.2／1028.5 MiB，首次解碼前取樣數 312／288／266，啟動至首次解碼觀察約 43.77／41.61／37.45 秒，首次解碼觀察至清理約 0.91／1.11／1.05 秒；每輪子程序均退出、暫存目錄均清除。同期 Python unittest 16/16、Node 33/33 通過。

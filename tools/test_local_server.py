@@ -221,7 +221,7 @@ class ServerTests(unittest.TestCase):
                     captured['process'].kill()
                     captured['process'].wait(timeout=5)
                 worker.join(8)
-        self.assertIsNone(self.server.active)
+        self.wait_for_available_slot()
         class QuickProcess:
             returncode = 0
 
