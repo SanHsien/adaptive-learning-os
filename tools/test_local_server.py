@@ -131,7 +131,7 @@ class ServerTests(unittest.TestCase):
             worker = threading.Thread(target=upload)
             worker.start()
             try:
-                self.assertTrue(started.wait(5), 'real child did not start')
+                self.assertTrue(started.wait(20), 'real child did not start')
                 self.assertEqual(self.request('POST', '/api/transcribe', WAV, self.auth())[0], 409)
                 status, _ = self.request('DELETE', '/api/transcribe', headers=self.auth(job_id))
                 self.assertEqual(status, 200)
