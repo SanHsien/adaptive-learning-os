@@ -1,0 +1,4 @@
+{
+  "_comment": "Reviewed deferrals require deferredLatest and reason; expire when upstream advances.",
+  "deferrals": {}
+}
