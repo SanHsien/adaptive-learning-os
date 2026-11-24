@@ -107,6 +107,17 @@ class ServerTests(unittest.TestCase):
                 'X-Job-ID': job_id or str(uuid.uuid4()),
                 'X-Media-Extension': '.wav', 'Content-Type': 'application/octet-stream'}
 
+    def setUp(self):
+        # The HTTP response can reach the client before the handler's finally
+        # releases the shared server slot. Detect a leak after a bounded wait.
+        self.wait_for_available_slot()
+
+    def wait_for_available_slot(self):
+        deadline = time.monotonic() + 5
+        while self.server.active is not None and time.monotonic() < deadline:
+            time.sleep(.02)
+        self.assertIsNone(self.server.active, 'job slot was not released')
+
     def test_session_requires_same_origin_navigation(self):
         self.assertEqual(self.request('GET', '/api/session')[0], 403)
         self.assertEqual(self.request('GET', '/api/session', headers={'Referer': self.origin + '/index.html'})[0], 200)
@@ -274,7 +285,7 @@ class ServerTests(unittest.TestCase):
                         while captured['folder'].exists() and time.monotonic() < deadline:
                             time.sleep(.02)
                         self.assertFalse(captured['folder'].exists(), 'temporary folder survived')
-                        self.assertIsNone(self.server.active, 'job slot was not released')
+                        self.wait_for_available_slot()
                     finally:
                         if 'process' in captured and captured['process'].poll() is None:
                             captured['process'].kill()
