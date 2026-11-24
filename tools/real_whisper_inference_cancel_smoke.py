@@ -5,6 +5,7 @@ All audio is synthesized locally and kept in temporary directories.
 """
 
 import argparse
+import json
 import http.client
 import os
 import subprocess
@@ -72,6 +73,7 @@ def main():
     interpreter = ROOT / '.venv' / 'Scripts' / 'python.exe'
     if os.name != 'nt' or not interpreter.is_file():
         raise RuntimeError('Windows and project .venv Whisper installation required')
+    from real_whisper_resource_smoke import sample_process_tree
 
     with tempfile.TemporaryDirectory(prefix='adaptive-inference-smoke-') as folder:
         directory = Path(folder)
@@ -106,6 +108,10 @@ def main():
                 marker = directory / f'first_segment_{cycle}'
                 results = {}
                 process_holder = {}
+                resource = {'peak_bytes': 0, 'peak_processes': 0, 'samples': 0}
+                cpu_by_pid = {}
+                sampler_stop = threading.Event()
+                sampler = None
 
                 def launch(command, **kwargs):
                     instrumented = [str(interpreter), str(wrapper), str(marker), *command[1:]]
@@ -133,6 +139,16 @@ def main():
                         assert marker.exists(), 'No decoded segment observed within 100 seconds'
                         process = process_holder['process']
                         assert process.poll() is None, 'Whisper exited before inference cancellation'
+                        def sample_until_stopped():
+                            while not sampler_stop.is_set():
+                                memory, count = sample_process_tree(process.pid, cpu_by_pid)
+                                resource['peak_bytes'] = max(resource['peak_bytes'], memory)
+                                resource['peak_processes'] = max(resource['peak_processes'], count)
+                                resource['samples'] += 1
+                                sampler_stop.wait(0.1)
+
+                        sampler = threading.Thread(target=sample_until_stopped, daemon=True)
+                        sampler.start()
                         assert request('DELETE', job_id)[0] == 200
                         worker.join(30)
                         assert not worker.is_alive(), 'Cancelled HTTP request did not return'
@@ -144,8 +160,24 @@ def main():
                             time.sleep(0.05)
                         assert not process_holder['temp'].exists(), 'Temporary media folder retained'
                         assert server.active is None, 'Active task slot retained'
+                        sampler_stop.set()
+                        sampler.join(10)
+                        assert not sampler.is_alive(), 'Resource sampler did not exit'
+                        assert resource['samples'] > 0, 'No resource samples collected'
+                        print(json.dumps({
+                            'cycle': cycle + 1,
+                            'sampled_peak_tree_working_set_mib': round(resource['peak_bytes'] / 1048576, 1),
+                            'sampled_process_tree_cpu_seconds': round(sum(cpu_by_pid.values()), 2),
+                            'max_sampled_processes': resource['peak_processes'],
+                            'samples': resource['samples'],
+                            'child_exited': process.poll() is not None,
+                            'temp_removed': not process_holder['temp'].exists(),
+                        }), flush=True)
                         print(f'PASS: real Whisper inference cancellation cycle {cycle + 1}/{options.cycles}', flush=True)
                 finally:
+                    sampler_stop.set()
+                    if sampler is not None:
+                        sampler.join(10)
                     process = process_holder.get('process')
                     if process and process.poll() is None:
                         process.kill()

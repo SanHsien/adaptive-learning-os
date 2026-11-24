@@ -2,6 +2,8 @@
 
 ## 本機自動化
 
+2026-11-24：Windows `.venv` 真實 faster-whisper small 合成語音，`python -u tools/real_whisper_inference_cancel_smoke.py --cycles 3` 三輪均 PASS，程序退出碼 0。首次解碼後至取消期間，三輪各取樣 5／5／6 次，程序樹 Working Set 峰值 589.0／582.4／589.8 MiB、程序樹累積 CPU 187.28／169.84／184.78 秒、最大程序數均 2；每輪 HTTP 取消與 POST 回覆、工作槽、子程序退出和暫存清理皆通過。CPU 是程序已累積的計數，取樣僅涵蓋首次解碼之後，不能推論完整執行期間記憶體峰值或長期穩定性。本機 Node 33/33、Python 16/16 通過。GitHub `bc57f58` CI、CodeQL 均成功，前版 `c04123a` CI 失敗的兩項 Linux 測試待追蹤偶發性。
+
 2026-11-23：新增 OCR 連續兩次在辨識已開始後取消、第三次重新辨識成功的合成 Worker 測試，逐 Worker 檢查 `terminate()` 呼叫次數。這是 Node 模擬測試，不代表已量測瀏覽器內真實 Tesseract Worker 的取消時間或資源使用量。
 
 瀏覽器測試新增對真實 Tesseract `createWorker`、`recognize`、`terminate` 的非替代式計數包裝；測試須在 `recognize()` 確實啟動後才切換科目或學習者，確認舊教材未跨 scope 出現且 Worker 各終止一次。此計數不等於 Worker 終止耗時測量。
