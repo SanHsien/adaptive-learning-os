@@ -235,6 +235,72 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 409)
         launch.assert_not_called()
 
+    def test_repeated_real_child_cancel_and_recovery(self):
+        """Repeated cancellation must free the same server's job slot every time."""
+        original_popen = subprocess.Popen
+
+        for cycle in range(3):
+            with self.subTest(cycle=cycle):
+                started = threading.Event()
+                captured = {}
+                result = {}
+                job_id = str(uuid.uuid4())
+
+                def launch(command, **kwargs):
+                    captured['folder'] = Path(command[command.index('--output') + 1]).parent
+                    process = original_popen(
+                        [sys.executable, '-c', 'import time; time.sleep(60)'],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                    )
+                    captured['process'] = process
+                    started.set()
+                    return process
+
+                def upload():
+                    result['response'] = self.request('POST', '/api/transcribe', WAV, self.auth(job_id))
+
+                worker = threading.Thread(target=upload)
+                with patch('local_server.subprocess.Popen', side_effect=launch):
+                    worker.start()
+                    try:
+                        self.assertTrue(started.wait(10), 'child did not start')
+                        self.assertEqual(self.request('POST', '/api/transcribe', WAV, self.auth())[0], 409)
+                        self.assertEqual(self.request('DELETE', '/api/transcribe', headers=self.auth(job_id))[0], 200)
+                        worker.join(8)
+                        self.assertFalse(worker.is_alive(), 'cancelled request is still running')
+                        self.assertEqual(result['response'][0], 409)
+                        self.assertIsNotNone(captured['process'].poll(), 'child survived cancellation')
+                        deadline = time.monotonic() + 5
+                        while captured['folder'].exists() and time.monotonic() < deadline:
+                            time.sleep(.02)
+                        self.assertFalse(captured['folder'].exists(), 'temporary folder survived')
+                        self.assertIsNone(self.server.active, 'job slot was not released')
+                    finally:
+                        if 'process' in captured and captured['process'].poll() is None:
+                            captured['process'].kill()
+                            captured['process'].wait(timeout=5)
+                        worker.join(8)
+
+        class QuickProcess:
+            returncode = 0
+
+            def communicate(self, timeout=None):
+                return b'', b''
+
+        def recover(command, **kwargs):
+            Path(command[command.index('--output') + 1]).write_text(
+                '1\n00:00:00,000 --> 00:00:01,000\n恢復成功\n', encoding='utf-8')
+            return QuickProcess()
+
+        with patch('local_server.subprocess.Popen', side_effect=recover):
+            status, body = self.request('POST', '/api/transcribe', WAV, self.auth())
+        self.assertEqual(status, 200)
+        self.assertIn('恢復成功', json.loads(body)['srt'])
+        deadline = time.monotonic() + 5
+        while self.server.active is not None and time.monotonic() < deadline:
+            time.sleep(.02)
+        self.assertIsNone(self.server.active)
+
     def test_success_mock_transcription_and_cleanup(self):
         class FakeProcess:
             returncode = 0
