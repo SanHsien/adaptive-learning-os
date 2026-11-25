@@ -90,7 +90,9 @@ def main():
         original_popen = subprocess.Popen
         def request(method, identifier, body=None):
             port = server.server_port
-            conn = http.client.HTTPConnection('127.0.0.1', port, timeout=180)
+            # Allow the first-segment deadline plus cancellation and cleanup time.
+            timeout = options.first_segment_timeout + 60 if method == 'POST' else 30
+            conn = http.client.HTTPConnection('127.0.0.1', port, timeout=timeout)
             try:
                 conn.request(method, '/api/transcribe', body=body, headers={
                     'Host': f'127.0.0.1:{port}',
