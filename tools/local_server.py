@@ -31,13 +31,16 @@ def close_worker_job(process):
 
 
 def launch_worker(command):
+    flags = (subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004) if os.name == 'nt' else 0  # CREATE_SUSPENDED
     process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                               creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
+                               creationflags=flags)
     if os.name == 'nt' and hasattr(process, '_handle'):
         try:
-            from windows_job import attach_job
+            from windows_job import attach_job, resume_process
             process._transcription_job = attach_job(process)
+            resume_process(process)
         except BaseException:
+            close_worker_job(process)
             process.kill()
             process.wait(timeout=10)
             raise

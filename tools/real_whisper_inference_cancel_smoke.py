@@ -69,6 +69,8 @@ def synthetic_audio(target, duration_seconds=45):
 def main():
     parser = argparse.ArgumentParser(description='Real Whisper cancellation and recovery smoke')
     parser.add_argument('--cycles', type=int, default=1, choices=range(1, 4), metavar='{1,2,3}')
+    parser.add_argument('--duration-seconds', type=int, default=45, choices=range(20, 91))
+    parser.add_argument('--first-segment-timeout', type=int, default=100, choices=range(30, 301))
     options = parser.parse_args()
     interpreter = ROOT / '.venv' / 'Scripts' / 'python.exe'
     if os.name != 'nt' or not interpreter.is_file():
@@ -80,7 +82,7 @@ def main():
         wrapper = directory / 'instrumented_whisper.py'
         wrapper.write_text(WRAPPER, encoding='utf-8')
         audio = directory / 'synthetic.wav'
-        synthetic_audio(audio)
+        synthetic_audio(audio, options.duration_seconds)
 
         server = LocalServer(('127.0.0.1', 0), Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -145,13 +147,23 @@ def main():
                 try:
                     with patch('local_server.subprocess.Popen', side_effect=launch):
                         worker.start()
-                        deadline = time.monotonic() + 100
+                        deadline = time.monotonic() + options.first_segment_timeout
                         while not marker.exists() and time.monotonic() < deadline:
                             process = process_holder.get('process')
                             if process and process.poll() is not None:
                                 raise AssertionError('Whisper finished or failed before first-segment signal')
                             time.sleep(0.1)
-                        assert marker.exists(), 'No decoded segment observed within 100 seconds'
+                        if not marker.exists():
+                            process = process_holder.get('process')
+                            elapsed = round(time.monotonic() - timestamps.get('launched', time.monotonic()), 2)
+                            with resource_lock:
+                                sample_count = resource['samples']
+                                peak_mib = round(resource['peak_bytes'] / 1048576, 1)
+                            raise AssertionError(
+                                f'No decoded segment within {options.first_segment_timeout}s; '
+                                f'child_alive={process is not None and process.poll() is None}, '
+                                f'elapsed={elapsed}s, samples={sample_count}, sampled_peak_mib={peak_mib}'
+                            )
                         timestamps['first_segment_observed'] = time.monotonic()
                         process = process_holder['process']
                         assert process.poll() is None, 'Whisper exited before inference cancellation'

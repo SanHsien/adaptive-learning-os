@@ -48,6 +48,10 @@ kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
 kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
 kernel32.CloseHandle.restype = wintypes.BOOL
 
+ntdll = ctypes.WinDLL('ntdll', use_last_error=True)
+ntdll.NtResumeProcess.argtypes = (wintypes.HANDLE,)
+ntdll.NtResumeProcess.restype = ctypes.c_long
+
 
 def attach_job(process):
     """Own this worker's descendant group until the returned handle is closed."""
@@ -71,3 +75,10 @@ def attach_job(process):
 def close_job(handle):
     if handle:
         kernel32.CloseHandle(handle)
+
+
+def resume_process(process):
+    """Resume a process created suspended, after its Job assignment succeeds."""
+    status = ntdll.NtResumeProcess(int(process._handle))
+    if status != 0:
+        raise OSError(f'NtResumeProcess failed with NTSTATUS 0x{status & 0xffffffff:08x}')

@@ -36,6 +36,8 @@ Windows 一鍵轉錄工作使用 Job Object 回收根程序與衍生程序，已
 
 ### 網頁內一鍵轉錄（本機測試版）
 
+Windows 轉錄工作以暫停狀態建立子程序，將其加入 Job Object 後才恢復執行，以確保從開始執行起即受程序生命週期管理。真模型取消驗收可用 `--duration-seconds 20`（20–90 秒）縮短合成音訊，並用 `--first-segment-timeout 100`（30–300 秒）設定首次解碼等待上限。該啟動流程採用 Windows `NtResumeProcess`，跨版本相容性與長期壓力仍待驗證。
+
 在專案根目錄的獨立 Python 環境安裝 `faster-whisper==1.2.1` 及 `av==16.1.0`，執行 `python tools/local_server.py`，再開啟 `http://127.0.0.1:4173`（**不要**使用 `localhost` 或另開 `npx http-server`）。選擇家人及科目、匯入 100 MB 以內的 MP3/WAV/M4A/MP4/WebM，點「本機一鍵轉錄」。產生文字預覽後請人工校對，再明確按「儲存教材」。切換人、科目或檔案會取消舊任務；原始影音只寫入系統暫存資料夾，工作結束會清理。此流程需要本機 Python 程序保持執行，不會自動安裝模型；第一次載入模型可能連線下載權重。請不要用真實敏感教材測試。
 
 這是單機測試功能，不提供公開服務或帳號安全隔離。CLI 仍可獨立使用；既有靜態網站模式只能人工輸入或匯入字幕。可執行 `python -m unittest discover -s tools -p 'test_*.py'` 檢查本機 HTTP 介面，或 `python tools/browser_transcription_smoke.py` 使用 Playwright 與合成影音驗證按鈕流程；兩者均不需要載入模型。

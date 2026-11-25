@@ -2,6 +2,8 @@
 
 ## 本機自動化
 
+2026-11-25：Windows `.\.venv\Scripts\python.exe -u tools/real_whisper_inference_cancel_smoke.py --cycles 1 --duration-seconds 20 --first-segment-timeout 100` 退出碼 0。修改前首次片段約 21.24 秒、程序樹取樣 Working Set 峰值 602.2 MiB；Windows worker 改採暫停建立、Job 指派後恢復執行後，再測首次片段 18.47 秒、Working Set 取樣峰值 651.3 MiB、取消至清理約 0.07 秒、子程序退出及暫存清除均通過。Python 17/17、Node 33/33 通過。45 秒合成音訊曾在 100 秒內未觀測到首段，仍需調查；跨 Windows 版本與持續負載尚未驗收。
+
 2026-11-24：針對 GitHub Linux CI `dabccb5` 的工作槽釋放時間競爭，`tools/test_local_server.py` 在每次測試開始與連續取消後，最多等待 5 秒確認 `server.active` 已釋放，逾時仍判定失敗。這保留清理缺陷偵測，並避免將 HTTP 先回覆造成的短暫狀態誤報為資源洩漏。最終 CI 結果以新提交為準。
 
 2026-11-24：Windows `.venv` 真實 faster-whisper small 合成語音，`python -u tools/real_whisper_inference_cancel_smoke.py --cycles 3` 三輪均 PASS，程序退出碼 0。首次解碼後至取消期間，三輪各取樣 5／5／6 次，程序樹 Working Set 峰值 589.0／582.4／589.8 MiB、程序樹累積 CPU 187.28／169.84／184.78 秒、最大程序數均 2；每輪 HTTP 取消與 POST 回覆、工作槽、子程序退出和暫存清理皆通過。CPU 是程序已累積的計數，取樣僅涵蓋首次解碼之後，不能推論完整執行期間記憶體峰值或長期穩定性。本機 Node 33/33、Python 16/16 通過。GitHub `bc57f58` CI、CodeQL 均成功，前版 `c04123a` CI 失敗的兩項 Linux 測試待追蹤偶發性。
