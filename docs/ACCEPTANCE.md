@@ -2,6 +2,8 @@
 
 ## 本機自動化
 
+2026-11-25：Windows 執行 `python -u tools/real_whisper_inference_cancel_smoke.py --cycles 3 --duration-seconds 45 --first-segment-timeout 150`（專案 `.venv`），退出碼 0、三輪均 PASS。首段耗時 44.18／34.84／31.62 秒；程序樹 Working Set 取樣峰值 1027.9／1027.6／1031.3 MiB；累積 CPU 152.17／130.56／118.86 秒；最大程序數均為 2；取樣 316／253／230 次（取消前 315／252／230 次）；取消至清理 0.06／0.08／0.06 秒。每輪 HTTP DELETE 200、POST 409、子程序退出、暫存移除與工作槽釋放均通過。未重現先前逾時，但原因仍不明；約 0.1 秒取樣及三輪短期測試不能證明硬性資源上限或長期穩定性。
+
 2026-11-25：新版 Job Object 啟動路徑額外執行 `.\.venv\Scripts\python.exe -u tools/real_whisper_inference_cancel_smoke.py --cycles 1 --duration-seconds 45 --first-segment-timeout 150`，退出碼 0。首次解碼 77.25 秒，程序樹取樣 Working Set 峰值 1033.8 MiB，程序樹累積 CPU 179.53 秒，取消至清理 0.07 秒，子程序退出、暫存移除通過。單次成功仍不足以解釋先前 100 秒逾時的全部原因。
 
 2026-11-25：Windows `.\.venv\Scripts\python.exe -u tools/real_whisper_inference_cancel_smoke.py --cycles 1 --duration-seconds 20 --first-segment-timeout 100` 退出碼 0。修改前首次片段約 21.24 秒、程序樹取樣 Working Set 峰值 602.2 MiB；Windows worker 改採暫停建立、Job 指派後恢復執行後，再測首次片段 18.47 秒、Working Set 取樣峰值 651.3 MiB、取消至清理約 0.07 秒、子程序退出及暫存清除均通過。Python 17/17、Node 33/33 通過。45 秒合成音訊曾在 100 秒內未觀測到首段，仍需調查；跨 Windows 版本與持續負載尚未驗收。
