@@ -2,6 +2,8 @@
 
 ## 本機自動化
 
+2026-11-25：新版 Job Object 啟動路徑額外執行 `.\.venv\Scripts\python.exe -u tools/real_whisper_inference_cancel_smoke.py --cycles 1 --duration-seconds 45 --first-segment-timeout 150`，退出碼 0。首次解碼 77.25 秒，程序樹取樣 Working Set 峰值 1033.8 MiB，程序樹累積 CPU 179.53 秒，取消至清理 0.07 秒，子程序退出、暫存移除通過。單次成功仍不足以解釋先前 100 秒逾時的全部原因。
+
 2026-11-25：Windows `.\.venv\Scripts\python.exe -u tools/real_whisper_inference_cancel_smoke.py --cycles 1 --duration-seconds 20 --first-segment-timeout 100` 退出碼 0。修改前首次片段約 21.24 秒、程序樹取樣 Working Set 峰值 602.2 MiB；Windows worker 改採暫停建立、Job 指派後恢復執行後，再測首次片段 18.47 秒、Working Set 取樣峰值 651.3 MiB、取消至清理約 0.07 秒、子程序退出及暫存清除均通過。Python 17/17、Node 33/33 通過。45 秒合成音訊曾在 100 秒內未觀測到首段，仍需調查；跨 Windows 版本與持續負載尚未驗收。
 
 2026-11-24：針對 GitHub Linux CI `dabccb5` 的工作槽釋放時間競爭，`tools/test_local_server.py` 在每次測試開始與連續取消後，最多等待 5 秒確認 `server.active` 已釋放，逾時仍判定失敗。這保留清理缺陷偵測，並避免將 HTTP 先回覆造成的短暫狀態誤報為資源洩漏。最終 CI 結果以新提交為準。
