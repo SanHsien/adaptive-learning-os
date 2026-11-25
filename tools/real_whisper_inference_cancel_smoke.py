@@ -71,7 +71,10 @@ def main():
     parser.add_argument('--cycles', type=int, default=1, choices=range(1, 4), metavar='{1,2,3}')
     parser.add_argument('--duration-seconds', type=int, default=45, choices=range(20, 91))
     parser.add_argument('--first-segment-timeout', type=int, default=100, choices=range(30, 301))
+    parser.add_argument('--action', choices=('cancel', 'crash', 'shutdown'), default='cancel')
     options = parser.parse_args()
+    if options.action == 'shutdown' and options.cycles != 1:
+        parser.error('shutdown requires one cycle')
     interpreter = ROOT / '.venv' / 'Scripts' / 'python.exe'
     if os.name != 'nt' or not interpreter.is_file():
         raise RuntimeError('Windows and project .venv Whisper installation required')
@@ -173,11 +176,18 @@ def main():
                             before_cancel_samples = resource['samples']
                             before_cancel_peak_bytes = resource['peak_bytes']
                         assert before_cancel_samples > 0, 'No samples collected during model startup/inference'
-                        assert request('DELETE', job_id)[0] == 200
+                        if options.action == 'cancel':
+                            assert request('DELETE', job_id)[0] == 200
+                        elif options.action == 'crash':
+                            process.kill()
+                        else:
+                            server.shutdown()
+                            server.server_close()
                         worker.join(30)
                         assert not worker.is_alive(), 'Cancelled HTTP request did not return'
                         assert 'error' not in results, repr(results.get('error'))
-                        assert results['response'][0] == 409, results['response'][0]
+                        expected_status = 500 if options.action == 'crash' else 409
+                        assert results['response'][0] == expected_status, results['response'][0]
                         assert process.poll() is not None, 'Whisper child survived cancellation'
                         deadline = time.monotonic() + 10
                         while (process_holder['temp'].exists() or server.active is not None) and time.monotonic() < deadline:
@@ -191,6 +201,7 @@ def main():
                         assert resource['samples'] > 0, 'No resource samples collected'
                         print(json.dumps({
                             'cycle': cycle + 1,
+                            'action': options.action,
                             'sampled_peak_tree_working_set_mib': round(resource['peak_bytes'] / 1048576, 1),
                             'sampled_pre_cancel_peak_tree_working_set_mib': round(before_cancel_peak_bytes / 1048576, 1),
                             'sampled_process_tree_cpu_seconds': round(sum(cpu_by_pid.values()), 2),
@@ -202,7 +213,7 @@ def main():
                             'child_exited': process.poll() is not None,
                             'temp_removed': not process_holder['temp'].exists(),
                         }), flush=True)
-                        print(f'PASS: real Whisper inference cancellation cycle {cycle + 1}/{options.cycles}', flush=True)
+                        print(f'PASS: real Whisper inference {options.action} cycle {cycle + 1}/{options.cycles}', flush=True)
                 finally:
                     sampler_stop.set()
                     if sampler is not None:
