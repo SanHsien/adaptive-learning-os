@@ -20,9 +20,38 @@ EXTENSIONS = {'.mp3', '.wav', '.m4a', '.mp4', '.webm'}
 SYSTEM_POPEN = subprocess.Popen
 
 
+def close_worker_job(process):
+    if process is None:
+        return
+    handle = getattr(process, '_transcription_job', None)
+    if handle is not None:
+        process._transcription_job = None
+        from windows_job import close_job
+        close_job(handle)
+
+
+def launch_worker(command):
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                               creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
+    if os.name == 'nt' and hasattr(process, '_handle'):
+        try:
+            from windows_job import attach_job
+            process._transcription_job = attach_job(process)
+        except BaseException:
+            process.kill()
+            process.wait(timeout=10)
+            raise
+    return process
+
+
 def stop_process_tree(process):
     """Stop the active transcription process and its descendants on Windows."""
-    if process is None or process.poll() is not None:
+    if process is None:
+        return
+    if getattr(process, '_transcription_job', None) is not None:
+        close_worker_job(process)
+        return
+    if process.poll() is not None:
         return
     if os.name == 'nt' and getattr(process, 'pid', None):
         killer = SYSTEM_POPEN(['taskkill', '/PID', str(process.pid), '/T', '/F'],
@@ -60,7 +89,7 @@ class LocalServer(ThreadingHTTPServer):
             if job is not None:
                 job['cancel'].set()
                 process = job['process']
-                if process is not None and process.poll() is None:
+                if process is not None:
                     try:
                         stop_process_tree(process)
                     except (OSError, subprocess.TimeoutExpired):
@@ -174,8 +203,7 @@ class Handler(SimpleHTTPRequestHandler):
                 with self.server.lock:
                     if job['cancel'].is_set():
                         return self._json(409, {'error': '轉錄已取消'})
-                    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                                               creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
+                    process = launch_worker(command)
                     job['process'] = process
                 try:
                     _, errors = process.communicate(timeout=1800)
@@ -202,6 +230,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(500, {'error': '本機轉錄處理失敗'})
         finally:
             with self.server.lock:
+                close_worker_job(job['process'])
                 if self.server.active is job:
                     self.server.active = None
 
@@ -217,7 +246,7 @@ class Handler(SimpleHTTPRequestHandler):
             job = self.server.active
             if job and job['id'] == job_id:
                 job['cancel'].set()
-                if job['process'] and job['process'].poll() is None:
+                if job['process']:
                     try:
                         stop_process_tree(job['process'])
                     except (OSError, subprocess.TimeoutExpired):

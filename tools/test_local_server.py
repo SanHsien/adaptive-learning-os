@@ -13,13 +13,46 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-from local_server import Handler, LocalServer, stop_process_tree
+from local_server import Handler, LocalServer, launch_worker, stop_process_tree
 
 
 WAV = b'RIFF\x24\x00\x00\x00WAVEfmt '
 
 
 class ServerTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows Job Objects')
+    def test_orphan_descendant_is_killed_after_parent_exit(self):
+        """Job lifetime includes children when their launching parent already exited."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'orphan.pid'
+            program = (
+                'import subprocess,sys,pathlib; '
+                'child=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"]); '
+                'pathlib.Path(sys.argv[1]).write_text(str(child.pid))'
+            )
+            parent = launch_worker([sys.executable, '-c', program, str(marker)])
+            child_pid = None
+            try:
+                parent.wait(timeout=10)
+                self.assertTrue(marker.exists(), 'parent did not spawn a descendant')
+                child_pid = int(marker.read_text())
+                before = subprocess.run(['tasklist', '/FI', f'PID eq {child_pid}', '/FO', 'CSV', '/NH'],
+                                        capture_output=True, text=True, timeout=10)
+                self.assertIn(f'"{child_pid}"', before.stdout, 'descendant exited before cleanup')
+                stop_process_tree(parent)
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    result = subprocess.run(['tasklist', '/FI', f'PID eq {child_pid}', '/FO', 'CSV', '/NH'],
+                                            capture_output=True, text=True, timeout=10)
+                    if f'"{child_pid}"' not in result.stdout:
+                        break
+                    time.sleep(.05)
+                self.assertNotIn(f'"{child_pid}"', result.stdout, 'orphan descendant survived cleanup')
+            finally:
+                stop_process_tree(parent)
+                parent.stderr.close()
+
     @unittest.skipUnless(os.name == 'nt', 'Windows process-tree termination')
     def test_cancel_terminates_descendant_process(self):
         """A real child that starts a grandchild must leave neither running."""

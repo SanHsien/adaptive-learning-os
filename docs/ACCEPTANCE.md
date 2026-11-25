@@ -111,3 +111,7 @@ CI `45505627385` 揭露單次真 OS 子程序取消整合測試的 Handler `fina
 `tools/real_whisper_inference_cancel_smoke.py --cycles 3` 從子程序啟動後每 0.1 秒取樣程序樹，量測首次解碼前及取消清理階段的時間、取消前與全窗 Working Set 取樣峰值。每輪仍核對 HTTP DELETE 200／POST 409、子程序退出、暫存目錄刪除及工作槽釋放。CPU 為累積程序時間，無法代表分階段 CPU 成本。孤兒程序及長期負載仍待驗收。
 
 2026-11-25 Windows 真實 faster-whisper small 三輪合成音訊驗證退出碼 0，三輪均 PASS。全窗 Working Set 取樣峰值依序為 1029.4／1027.2／1028.5 MiB，首次解碼前取樣數 312／288／266，啟動至首次解碼觀察約 43.77／41.61／37.45 秒，首次解碼觀察至清理約 0.91／1.11／1.05 秒；每輪子程序均退出、暫存目錄均清除。同期 Python unittest 16/16、Node 33/33 通過。
+
+2026-11-25：Windows `test_orphan_descendant_is_killed_after_parent_exit` 使用真實 Python 父程序產生持續執行的子程序，父程序正常退出後關閉 Job handle，驗證子程序在五秒內消失。此為不載入 Whisper 的回歸測試，並未消除程序建立與 Job 指派之間的競爭窗口。
+
+本次更新 Node 33/33、Python 17/17 與工具編譯檢查通過。另執行一次 `real_whisper_inference_cancel_smoke.py --cycles 1`，因 100 秒內未收到首次解碼訊號而失敗；尚無法確認是模型執行時間變異或 Job Object 整合造成。必須待真模型複測通過才可將此版列為完整的 Whisper 取消驗收。
