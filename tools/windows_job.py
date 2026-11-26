@@ -4,10 +4,12 @@ import ctypes
 from ctypes import wintypes
 
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+JOB_OBJECT_LIMIT_JOB_TIME = 0x4
 JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x8
 JOB_OBJECT_LIMIT_JOB_MEMORY = 0x200
 JOB_MEMORY_BYTES = 4 * 1024**3
 JOB_ACTIVE_PROCESSES = 8
+JOB_USER_CPU_SECONDS = 14400
 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS = 9
 
 
@@ -57,7 +59,8 @@ ntdll.NtResumeProcess.argtypes = (wintypes.HANDLE,)
 ntdll.NtResumeProcess.restype = ctypes.c_long
 
 
-def attach_job(process, *, memory_bytes=JOB_MEMORY_BYTES, active_processes=JOB_ACTIVE_PROCESSES):
+def attach_job(process, *, memory_bytes=JOB_MEMORY_BYTES, active_processes=JOB_ACTIVE_PROCESSES,
+               user_cpu_seconds=JOB_USER_CPU_SECONDS):
     """Own this worker's descendant group until the returned handle is closed."""
     handle = kernel32.CreateJobObjectW(None, None)
     if not handle:
@@ -65,10 +68,12 @@ def attach_job(process, *, memory_bytes=JOB_MEMORY_BYTES, active_processes=JOB_A
     try:
         limits = EXTENDED_LIMIT_INFORMATION()
         limits.BasicLimitInformation.LimitFlags = (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                                                    | JOB_OBJECT_LIMIT_JOB_TIME
                                                     | JOB_OBJECT_LIMIT_ACTIVE_PROCESS
                                                     | JOB_OBJECT_LIMIT_JOB_MEMORY)
         limits.BasicLimitInformation.ActiveProcessLimit = active_processes
         limits.JobMemoryLimit = memory_bytes
+        limits.BasicLimitInformation.PerJobUserTimeLimit.QuadPart = int(user_cpu_seconds * 10_000_000)
         if not kernel32.SetInformationJobObject(handle, JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
                                                 ctypes.byref(limits), ctypes.sizeof(limits)):
             raise ctypes.WinError(ctypes.get_last_error())

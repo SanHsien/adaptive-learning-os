@@ -21,6 +21,22 @@ WAV = b'RIFF\x24\x00\x00\x00WAVEfmt '
 
 class ServerTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'nt', 'Windows Job Objects')
+    def test_job_cpu_time_limit_terminates_worker(self):
+        from windows_job import attach_job, close_job, resume_process
+        process = subprocess.Popen([sys._base_executable, '-c', 'while True: pass'],
+                                   creationflags=0x00000004)
+        handle = None
+        try:
+            handle = attach_job(process, user_cpu_seconds=1)
+            resume_process(process)
+            self.assertNotEqual(process.wait(timeout=15), 0)
+        finally:
+            close_job(handle)
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=10)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows Job Objects')
     def test_job_resource_limits(self):
         from windows_job import attach_job, close_job, resume_process
         cases = [

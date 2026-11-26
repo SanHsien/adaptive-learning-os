@@ -109,7 +109,7 @@ CI（`.github/workflows/ci.yml`）在 push／PR 到 `main` 或手動觸發（`wo
 
 ### P0：檔案教材匯入設計
 
-圖片 PNG/JPEG/WebP 透過檔頭驗證後以暫時性 blob URL 在當前科目預覽；`src/ocr.js` 使用本機 Tesseract.js 7 + `chi_tra` 語言資料進行 OCR，最多 2000 萬像素並縮至最長邊 2200 px；辨識後須人工校對才可寫入 IndexedDB，來源記錄圖片檔名與格式，不保存圖片二進位內容。PDF.js 對有文字層的頁面直接擷取，沒有文字層的頁面繪製為 Canvas 交由相同 OCR 辨識；PDF 最多 100 頁，其中需 OCR 的頁面不超過 20 頁。OCR 資源由 `vendor/ocr/` 本機載入，不透過第三方服務。影音 MP3/WAV/M4A/MP4/WebM 驗證檔頭及 100 MB 上限，以暫時性 blob URL 播放，人工輸入逐字稿確認後保存文字；切換家人或科目撤銷圖片及影音暫存 URL。已提供選用的 localhost Whisper 自動轉錄，結果須人工校對；Windows Job 整組 committed memory 上限為 4 GiB、同時程序數上限為 8，另有 1800 秒轉錄逾時。
+圖片 PNG/JPEG/WebP 透過檔頭驗證後以暫時性 blob URL 在當前科目預覽；`src/ocr.js` 使用本機 Tesseract.js 7 + `chi_tra` 語言資料進行 OCR，最多 2000 萬像素並縮至最長邊 2200 px；辨識後須人工校對才可寫入 IndexedDB，來源記錄圖片檔名與格式，不保存圖片二進位內容。PDF.js 對有文字層的頁面直接擷取，沒有文字層的頁面繪製為 Canvas 交由相同 OCR 辨識；PDF 最多 100 頁，其中需 OCR 的頁面不超過 20 頁。OCR 資源由 `vendor/ocr/` 本機載入，不透過第三方服務。影音 MP3/WAV/M4A/MP4/WebM 驗證檔頭及 100 MB 上限，以暫時性 blob URL 播放，人工輸入逐字稿確認後保存文字；切換家人或科目撤銷圖片及影音暫存 URL。已提供選用的 localhost Whisper 自動轉錄，結果須人工校對；Windows Job 整組 committed memory 上限為 4 GiB、同時程序數上限為 8，整組累計 user-mode CPU 時間上限為 14400 秒，另有獨立 1800 秒 wall-clock 轉錄逾時。
 
 已完成 TXT/Markdown/CSV、PDF（PDF.js + 掃描頁 OCR）、DOCX（Mammoth）、圖片（Tesseract.js）的純瀏覽器擷取、預覽與確認儲存。程式碼及模型隨專案附帶，辨識不連接第三方服務。待辦：自動影音轉錄與正式家用帳號授權。Word `.doc` 二進位格式須轉檔為 DOCX。不得以「檔案已選取」等同「已成功理解教材」。
 
