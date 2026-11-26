@@ -29,7 +29,7 @@ class ServerTests(unittest.TestCase):
         ]
         for name, program, memory, count in cases:
             with self.subTest(limit=name):
-                process = subprocess.Popen([sys.executable, '-c', program],
+                process = subprocess.Popen([sys._base_executable, '-c', program],
                                            creationflags=0x00000004, stderr=subprocess.PIPE)
                 handle = None
                 try:
@@ -373,6 +373,23 @@ class ServerTests(unittest.TestCase):
         while self.server.active is not None and time.monotonic() < deadline:
             time.sleep(.02)
         self.assertIsNone(self.server.active)
+
+    def test_transcription_limit_releases_slot_and_temp_folder(self):
+        from transcribe_local import LIMIT_EXIT_CODE
+        folders = []
+
+        from types import SimpleNamespace
+
+        def launch(command):
+            folders.append(Path(command[command.index('--output') + 1]).parent)
+            return SimpleNamespace(returncode=LIMIT_EXIT_CODE, communicate=lambda **kwargs: (b'', b''))
+
+        with patch('local_server.launch_worker', side_effect=launch):
+            status, _ = self.request('POST', '/api/transcribe', WAV, self.auth())
+        self.assertEqual(status, 413)
+        self.wait_for_available_slot()
+        self.assertEqual(len(folders), 1)
+        self.assertFalse(folders[0].exists())
 
     def test_success_mock_transcription_and_cleanup(self):
         class FakeProcess:

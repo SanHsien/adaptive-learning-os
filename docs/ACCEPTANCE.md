@@ -1,5 +1,7 @@
 # 驗收清冊
 
+2026-11-26：本機轉錄改以 PyAV 逐音訊 frame 重取樣為 16 kHz mono，累計實際 PCM 樣本限制 60 分鐘；SRT 逐段累計限制 100000 字元及 400000 bytes，超限 CLI exit 75、HTTP 413，拒絕輸出並清理暫存及任務槽。以實際合成 WAV 兩秒及一秒測試界線，SRT 生成器超限停止消費後續段落，HTTP 超限清理測試通過。Windows .venv Python 21/21、Node 33/33、語法與 diff 檢查通過；30 秒合成中文真 Whisper small smoke PASS，exit 0，40.27 秒，取樣 Working Set 1032.6 MiB。Windows Job 低程序限額測試改用 base interpreter，避免 venv launcher 本身佔用第二程序而提前失敗。60 分鐘為初始政策，未實測完整 60 分鐘或所有壓縮格式的極限；CPU 累積時間、非 Windows 等效程序資源限制及長期驗收仍待處理。
+
 2026-11-26：Windows 轉錄 Job Object 新增 4 GiB 整組 committed memory 與 8 個同時存活程序上限；保留 1800 秒 wall-clock 轉錄逾時。低限額負向測試確認 128 MiB Job 拒絕 256 MiB 配置、1 程序 Job 拒絕建立子程序，後續 worker 正常退出。Python 18/18、Node 33/33 通過。改由正式 launch_worker 啟動的 45 秒合成中文 Whisper small smoke PASS（exit 0），耗時 121.22 秒、取樣 Working Set 1036.1 MiB、累積 CPU 206.03 秒、最多 2 程序、383 次取樣。Working Set 與 committed memory 為不同指標；尚未設定 CPU 時間硬上限、解碼長度上限或非 Windows 等效限制，P0 持續進行中。
 
 ## 本機自動化

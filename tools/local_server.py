@@ -14,6 +14,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from transcribe_local import LIMIT_EXIT_CODE, MAX_SRT_BYTES, MAX_SRT_CHARS
+
 ROOT = Path(__file__).resolve().parents[1]
 MAX_BYTES = 100 * 1024 * 1024
 EXTENSIONS = {'.mp3', '.wav', '.m4a', '.mp4', '.webm'}
@@ -219,12 +221,14 @@ class Handler(SimpleHTTPRequestHandler):
                     return self._json(504, {'error': '轉錄逾時，已終止'})
                 if job['cancel'].is_set():
                     return self._json(409, {'error': '轉錄已取消'})
+                if process.returncode == LIMIT_EXIT_CODE:
+                    return self._json(413, {'error': '音訊或逐字稿過長，請分段轉錄'})
                 if process.returncode != 0:
                     return self._json(500, {'error': '本機轉錄失敗，請檢查 Whisper 安裝及模型相容性'})
-                if target.stat().st_size > 400000:
+                if target.stat().st_size > MAX_SRT_BYTES:
                     return self._json(413, {'error': '逐字稿過長，請分段轉錄'})
                 content = target.read_text(encoding='utf-8')
-                if len(content) > 100000:
+                if len(content) > MAX_SRT_CHARS:
                     return self._json(413, {'error': '逐字稿過長，請分段轉錄'})
                 return self._json(200, {'srt': content})
         except TimeoutError:

@@ -1,11 +1,44 @@
 """Optional offline-media transcription companion. Audio never leaves this process."""
 
 import argparse
+import io
 from pathlib import Path
 
 
 SUPPORTED = {'.mp3', '.wav', '.m4a', '.mp4', '.webm'}
 MAX_BYTES = 100 * 1024 * 1024
+MAX_AUDIO_SECONDS = 3600
+SAMPLE_RATE = 16000
+MAX_SRT_CHARS = 100000
+MAX_SRT_BYTES = 400000
+LIMIT_EXIT_CODE = 75
+
+
+class TranscriptionLimitError(ValueError):
+    pass
+
+
+def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
+    """Decode mono PCM incrementally; enforce actual samples, not metadata."""
+    import av
+    import numpy as np
+
+    resampler = av.AudioResampler(format='s16', layout='mono', rate=SAMPLE_RATE)
+    limit = max_seconds * SAMPLE_RATE * 2
+    with io.BytesIO() as buffer, av.open(str(source), mode='r') as container:
+        def append_frames(frames):
+            for frame in frames:
+                if buffer.tell() + frame.samples * 2 > limit:
+                    raise TranscriptionLimitError('音訊超過 60 分鐘，請分段轉錄')
+                buffer.write(frame.to_ndarray().tobytes())
+
+        for frame in container.decode(audio=0):
+            frame.pts = None
+            append_frames(resampler.resample(frame))
+        append_frames(resampler.resample(None))
+        if not buffer.tell():
+            raise ValueError('影音沒有可解碼的音訊')
+        return np.frombuffer(buffer.getvalue(), dtype=np.int16).astype(np.float32) / 32768.0
 
 
 def timestamp(seconds):
@@ -20,6 +53,7 @@ def timestamp(seconds):
 
 def render_srt(segments):
     blocks = []
+    chars = size = 0
     for segment in segments:
         start, end, words = segment.start, segment.end, segment.text.strip()
         if not words:
@@ -28,7 +62,13 @@ def render_srt(segments):
             raise ValueError('辨識結果時間碼無效')
         # Avoid allowing model text to mimic extra SRT cues.
         words = ' '.join(words.split())
-        blocks.append(f'{len(blocks) + 1}\n{timestamp(start)} --> {timestamp(end)}\n{words}')
+        block = f'{len(blocks) + 1}\n{timestamp(start)} --> {timestamp(end)}\n{words}'
+        separator = 2 if blocks else 1  # Include the final newline.
+        chars += len(block) + separator
+        size += len(block.encode('utf-8')) + separator
+        if chars > MAX_SRT_CHARS or size > MAX_SRT_BYTES:
+            raise TranscriptionLimitError('逐字稿過長，請分段轉錄')
+        blocks.append(block)
     if not blocks:
         raise ValueError('沒有辨識到語音，未產生逐字稿')
     return '\n\n'.join(blocks) + '\n'
@@ -49,8 +89,9 @@ def transcribe(input_path, output_path, model_name='small', language='zh', devic
         from faster_whisper import WhisperModel
     except ImportError as exc:
         raise RuntimeError('請先安裝本機語音辨識套件：python -m pip install faster-whisper') from exc
+    audio = decode_bounded(source)
     model = WhisperModel(model_name, device=device, compute_type='int8')
-    segments, _ = model.transcribe(str(source), language=language, vad_filter=True)
+    segments, _ = model.transcribe(audio, language=language, vad_filter=True)
     result = render_srt(segments)
     # Exclusive create prevents overwriting a file created concurrently.
     with target.open('x', encoding='utf-8', newline='\n') as handle:
@@ -67,7 +108,10 @@ def main():
     parser.add_argument('--device', default='cpu', choices=('cpu', 'cuda'))
     args = parser.parse_args()
     source = Path(args.input)
-    result = transcribe(source, args.output or source.with_suffix('.srt'), args.model, args.language, args.device)
+    try:
+        result = transcribe(source, args.output or source.with_suffix('.srt'), args.model, args.language, args.device)
+    except TranscriptionLimitError as exc:
+        parser.exit(LIMIT_EXIT_CODE, str(exc) + '\n')
     print(f'逐字稿已產生：{result}（請校對後匯入正確家人及科目）')
 
 
