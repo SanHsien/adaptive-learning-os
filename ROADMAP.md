@@ -1,5 +1,7 @@
 # 自適應自修系統路線圖
 
+2026-11-26：Windows 轉錄 Job Object 新增 4 GiB 整組 committed memory 與 8 個同時存活程序上限；保留 1800 秒 wall-clock 轉錄逾時。低限額負向測試確認 128 MiB Job 拒絕 256 MiB 配置、1 程序 Job 拒絕建立子程序，後續 worker 正常退出。Python 18/18、Node 33/33 通過。改由正式 launch_worker 啟動的 45 秒合成中文 Whisper small smoke PASS（exit 0），耗時 121.22 秒、取樣 Working Set 1036.1 MiB、累積 CPU 206.03 秒、最多 2 程序、383 次取樣。Working Set 與 committed memory 為不同指標；尚未設定 CPU 時間硬上限、解碼長度上限或非 Windows 等效限制，P0 持續進行中。
+
 > 後續工作的單一待辦來源；完成任務時在同一個 commit 更新本檔。狀態以實際驗收為準，不將構想寫成已實作。
 
 2026-11-25：Windows 真 Whisper small CPU int8 資源 smoke（--duration-seconds 180）使用約 180 秒合成中文語音，PASS、退出碼 0；轉錄耗時 74.69 秒，程序樹取樣 Working Set 峰值 1039.3 MiB、累積 CPU 250.50 秒、最多 2 程序、259 次取樣。此為單次本機量測，尚未證實硬性資源上限或跨環境長期穩定性，P0 持續進行中。

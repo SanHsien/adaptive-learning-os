@@ -21,6 +21,35 @@ WAV = b'RIFF\x24\x00\x00\x00WAVEfmt '
 
 class ServerTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'nt', 'Windows Job Objects')
+    def test_job_resource_limits(self):
+        from windows_job import attach_job, close_job, resume_process
+        cases = [
+            ('memory', 'try:\n bytearray(256 * 1024**2)\nexcept MemoryError:\n raise SystemExit(42)', 128 * 1024**2, 8),
+            ('process', 'import subprocess,sys\ntry:\n subprocess.run([sys.executable, "-c", "pass"], check=True)\nexcept OSError:\n raise SystemExit(42)', 512 * 1024**2, 1),
+        ]
+        for name, program, memory, count in cases:
+            with self.subTest(limit=name):
+                process = subprocess.Popen([sys.executable, '-c', program],
+                                           creationflags=0x00000004, stderr=subprocess.PIPE)
+                handle = None
+                try:
+                    handle = attach_job(process, memory_bytes=memory, active_processes=count)
+                    resume_process(process)
+                    _, error = process.communicate(timeout=15)
+                    self.assertEqual(process.returncode, 42, error)
+                finally:
+                    close_job(handle)
+                    if process.poll() is None:
+                        process.kill()
+                    process.communicate(timeout=10)
+        worker = launch_worker([sys.executable, '-c', 'pass'])
+        try:
+            worker.communicate(timeout=10)
+            self.assertEqual(worker.returncode, 0)
+        finally:
+            stop_process_tree(worker)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows Job Objects')
     def test_orphan_descendant_is_killed_after_parent_exit(self):
         """Job lifetime includes children when their launching parent already exited."""
         import tempfile

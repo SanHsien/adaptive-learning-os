@@ -13,7 +13,7 @@ import time
 from ctypes import wintypes
 from pathlib import Path
 
-from local_server import ROOT, stop_process_tree
+from local_server import ROOT, launch_worker, stop_process_tree
 from real_whisper_inference_cancel_smoke import synthetic_audio
 
 
@@ -118,9 +118,7 @@ def main():
         synthetic_audio(source, options.duration_seconds)
         command = [str(interpreter), str(ROOT / 'tools' / 'transcribe_local.py'),
                    str(source), '--output', str(target), '--model', 'small']
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.PIPE,
-                                   creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+        process = launch_worker(command)
         start = time.monotonic()
         peak_bytes = 0
         peak_processes = 0
@@ -149,9 +147,8 @@ def main():
                 'samples': samples,
             }, ensure_ascii=False), flush=True)
         finally:
-            if process.poll() is None:
-                stop_process_tree(process)
-                process.communicate(timeout=15)
+            stop_process_tree(process)
+            process.communicate(timeout=15)
 
 
 if __name__ == '__main__':
