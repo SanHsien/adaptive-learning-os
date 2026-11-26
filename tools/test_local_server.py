@@ -20,6 +20,45 @@ WAV = b'RIFF\x24\x00\x00\x00WAVEfmt '
 
 
 class ServerTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'posix', 'POSIX process groups')
+    def test_posix_group_cleanup_after_parent_exit(self):
+        import fcntl
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'ready'
+            lock_path = Path(directory) / 'child.lock'
+            child = (
+                'import fcntl,pathlib,sys,time; '
+                'lock=open(sys.argv[1], "w"); fcntl.flock(lock, fcntl.LOCK_EX); '
+                'pathlib.Path(sys.argv[2]).touch(); time.sleep(60)'
+            )
+            parent_code = (
+                'import pathlib,subprocess,sys,time; '
+                'subprocess.Popen([sys.executable,"-c",sys.argv[1],sys.argv[2],sys.argv[3]]); '
+                'deadline=time.monotonic()+5; '
+                '\nwhile not pathlib.Path(sys.argv[3]).exists() and time.monotonic()<deadline: time.sleep(.02)'
+            )
+            parent = launch_worker([sys.executable, '-c', parent_code, child, str(lock_path), str(marker)])
+            try:
+                self.assertEqual(parent.wait(timeout=10), 0)
+                self.assertTrue(marker.exists(), 'descendant did not acquire lock')
+                with lock_path.open() as lock:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    stop_process_tree(parent)
+                    deadline = time.monotonic() + 5
+                    while True:
+                        try:
+                            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            break
+                        except BlockingIOError:
+                            if time.monotonic() >= deadline:
+                                self.fail('descendant survived group cleanup')
+                            time.sleep(.02)
+            finally:
+                stop_process_tree(parent)
+                parent.wait(timeout=10)
+
     @unittest.skipUnless(os.name == 'nt', 'Windows Job Objects')
     def test_job_cpu_time_limit_terminates_worker(self):
         from windows_job import attach_job, close_job, resume_process

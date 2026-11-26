@@ -1,5 +1,7 @@
 # 家人自修室 · Adaptive Learning OS
 
+POSIX 本機轉錄使用獨立程序群組，正常結束、取消及逾時會清理仍在該群組內的程序；尚無整組資源硬上限或程序群組逃逸防護。
+
 本機 Whisper 轉錄限制為每次最多 60 分鐘實際解碼音訊（16 kHz mono PCM 樣本累計）、SRT 最多 100000 字元及 400000 bytes；超限停止處理，網頁回傳 HTTP 413 並提示分段轉錄。
 
 Windows 一鍵轉錄工作使用 Job Object 回收根程序與衍生程序，已以合成 Python 父子程序驗證根程序提前退出後的清理。真 Whisper 受控異常退出已驗收；Windows Job 限制整組 committed memory 4 GiB 、8 個同時存活程序與累計 14400 秒 user-mode CPU 時間，另有獨立 1800 秒 wall-clock 逾時；長期運作與跨硬體驗收仍列於 ROADMAP。

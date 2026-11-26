@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import secrets
+import signal
 import subprocess
 import sys
 import tempfile
@@ -30,12 +31,21 @@ def close_worker_job(process):
         process._transcription_job = None
         from windows_job import close_job
         close_job(handle)
+    group = getattr(process, '_transcription_group', None)
+    if group is not None:
+        process._transcription_group = None
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def launch_worker(command):
     flags = (subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004) if os.name == 'nt' else 0  # CREATE_SUSPENDED
-    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                               creationflags=flags)
+    # POSIX descendants must not keep the server waiting on an inherited pipe.
+    stderr = subprocess.DEVNULL if os.name == 'posix' else subprocess.PIPE
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=stderr,
+                               creationflags=flags, start_new_session=os.name == 'posix')
     if os.name == 'nt' and hasattr(process, '_handle'):
         try:
             from windows_job import attach_job, resume_process
@@ -46,14 +56,22 @@ def launch_worker(command):
             process.kill()
             process.wait(timeout=10)
             raise
+    elif os.name == 'posix' and isinstance(process, SYSTEM_POPEN):
+        # Only claim a group created for this worker, never the server group.
+        try:
+            if os.getpgid(process.pid) == process.pid:
+                process._transcription_group = process.pid
+        except ProcessLookupError:
+            pass
     return process
 
 
 def stop_process_tree(process):
-    """Stop the active transcription process and its descendants on Windows."""
+    """Stop the active transcription process and its owned process group."""
     if process is None:
         return
-    if getattr(process, '_transcription_job', None) is not None:
+    if (getattr(process, '_transcription_job', None) is not None
+            or getattr(process, '_transcription_group', None) is not None):
         close_worker_job(process)
         return
     if process.poll() is not None:
@@ -219,6 +237,8 @@ class Handler(SimpleHTTPRequestHandler):
                         process.kill()
                     process.communicate()
                     return self._json(504, {'error': '轉錄逾時，已終止'})
+                with self.server.lock:
+                    close_worker_job(process)
                 if job['cancel'].is_set():
                     return self._json(409, {'error': '轉錄已取消'})
                 if process.returncode == LIMIT_EXIT_CODE:
