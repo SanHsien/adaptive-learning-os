@@ -1,5 +1,8 @@
 # 自適應自修系統路線圖
 
+2026-11-27：Linux CI 改以獨立 Python venv 安裝固定版本 PyAV 16.1.0 與 NumPy 2.5.5，並先確認可匯入，避免實際影音解碼案例因缺少依賴而跳過。版本沿用 Windows 已驗收環境；僅接受 wheel，不下載 Whisper 模型。Windows Python 26 項通過、1 項 POSIX 跳過，Node 33 項通過，安裝、語法、編譯及 diff 檢查通過。前版 c0c3e50 CI 與 CodeQL 成功；新版 Linux wheel 相容性及 CI 結果待確認。
+
+
 2026-11-27：新增實際 60 分鐘解碼邊界回歸，以 16 kHz mono ALAC/M4A 合成靜音、檔案均低於 100 MiB；3600 秒精確取得 57600000 樣本，3601 秒遭拒。Windows Python 26 項通過、1 項 POSIX 跳過，Node 33 項通過，安裝、語法、編譯與 diff 檢查通過。前版 5feb04a CI 與 CodeQL 均成功。此為解碼驗收，完整一小時真 Whisper 推論、跨硬體效能及 POSIX 整組資源限制仍待驗收。
 
 
