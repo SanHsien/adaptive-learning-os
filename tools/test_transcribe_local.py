@@ -72,6 +72,36 @@ class TranscriptionTests(unittest.TestCase):
                     with self.assertRaises(TranscriptionLimitError):
                         decode_bounded(path, max_seconds=1)
 
+    def test_actual_hour_decode_boundary(self):
+        import importlib.util
+        if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
+            self.skipTest('Optional PyAV and NumPy dependencies')
+        import av
+        import numpy as np
+        from transcribe_local import decode_bounded, MAX_BYTES, MAX_AUDIO_SECONDS, SAMPLE_RATE
+        with tempfile.TemporaryDirectory() as folder:
+            for seconds in (MAX_AUDIO_SECONDS, MAX_AUDIO_SECONDS + 1):
+                with self.subTest(seconds=seconds):
+                    path = Path(folder) / f'boundary-{seconds}.m4a'
+                    with av.open(str(path), 'w') as container:
+                        stream = container.add_stream('alac', rate=SAMPLE_RATE)
+                        stream.layout = 'mono'
+                        for _ in range(seconds):
+                            frame = av.AudioFrame.from_ndarray(
+                                np.zeros((1, SAMPLE_RATE), dtype=np.int16), format='s16', layout='mono')
+                            frame.sample_rate = SAMPLE_RATE
+                            for packet in stream.encode(frame):
+                                container.mux(packet)
+                        for packet in stream.encode(None):
+                            container.mux(packet)
+                    self.assertLessEqual(path.stat().st_size, MAX_BYTES)
+                    if seconds == MAX_AUDIO_SECONDS:
+                        self.assertEqual(len(decode_bounded(path)), seconds * SAMPLE_RATE)
+                    else:
+                        with self.assertRaises(TranscriptionLimitError):
+                            decode_bounded(path)
+                    path.unlink()
+
     def test_video_with_multiple_audio_tracks(self):
         import importlib.util
         if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
