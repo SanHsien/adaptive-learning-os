@@ -1,5 +1,7 @@
 # 自適應自修系統路線圖
 
+2026-11-27：新增 MP3、M4A、MP4（AAC 音軌）與 WebM（Opus 音軌）實際 PyAV 編解碼回歸測試，使用 48 kHz 合成音訊驗證重取樣至 16 kHz、3 秒限額接受及 1 秒限額拒絕。Windows Python 23 項通過、1 項 POSIX 跳過，Node 33 項通過，語法與 diff 檢查通過。前版 bf7ee0a 的 Linux CI 與 CodeQL 已成功。短音訊測試尚未涵蓋完整 60 分鐘、視訊畫面、多音軌及跨硬體長期負載。
+
 2026-11-26：POSIX 轉錄工作使用獨立 session/process group，取消、逾時、正常結束時以 SIGKILL 清理仍在群組內的程序；避免繼承 stderr pipe 阻塞根程序回收。新增根程序先退出後以檔案鎖驗證子程序清理的 POSIX 回歸測試。Windows Python 22 項通過、1 項 POSIX 跳過，Node 33 項通過，語法與 diff 檢查通過。Linux CI 尚待驗證；群組逃逸、宿主異常退出及 POSIX 整組 CPU／記憶體限制仍未涵蓋。
 
 2026-11-26：Windows Job Object 新增整組累積 user-mode CPU 時間上限 14400 秒（初始政策），保留獨立 1800 秒 wall-clock 逾時、4 GiB committed memory 與 8 個同時程序上限。1 秒低限額測試確認 CPU-bound worker 非零退出；Python 22/22、Node 33/33、語法及 diff 檢查通過。30 秒合成中文真 Whisper small smoke PASS，退出碼 0，耗時 97.53 秒、取樣程序樹 CPU 201.64 秒、Working Set 峰值 1032.8 MiB、最多 2 程序、313 次取樣。取樣 CPU 含 kernel 與 user 時間，與 Job user-mode 預算不同；低限額測試尚未驗證多子程序累加，非 Windows 等效限制、長影音與跨硬體驗收仍待完成，P0 持續進行中。

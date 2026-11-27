@@ -43,6 +43,35 @@ class TranscriptionTests(unittest.TestCase):
             with self.assertRaises(TranscriptionLimitError):
                 decode_bounded(path, max_seconds=1)
 
+    def test_bounded_decode_compressed_audio(self):
+        import importlib.util
+        if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
+            self.skipTest('Optional PyAV and NumPy dependencies')
+        import av
+        import numpy as np
+        from transcribe_local import decode_bounded
+        formats = [('mp3', 'mp3'), ('m4a', 'aac'), ('mp4', 'aac'), ('webm', 'libopus')]
+        with tempfile.TemporaryDirectory() as folder:
+            for suffix, codec in formats:
+                with self.subTest(format=suffix):
+                    path = Path(folder) / f'synthetic.{suffix}'
+                    with av.open(str(path), 'w') as container:
+                        stream = container.add_stream(codec, rate=48000)
+                        stream.layout = 'mono'
+                        for _ in range(20):
+                            frame = av.AudioFrame.from_ndarray(
+                                np.zeros((1, 4800), dtype=np.int16), format='s16', layout='mono')
+                            frame.sample_rate = 48000
+                            for packet in stream.encode(frame):
+                                container.mux(packet)
+                        for packet in stream.encode(None):
+                            container.mux(packet)
+                    audio = decode_bounded(path, max_seconds=3)
+                    self.assertGreaterEqual(len(audio), 30000)
+                    self.assertLess(len(audio), 48000)
+                    with self.assertRaises(TranscriptionLimitError):
+                        decode_bounded(path, max_seconds=1)
+
     def test_input_validation_preserves_existing_output(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / 'lesson.mp3'
