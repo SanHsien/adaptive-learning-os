@@ -1,5 +1,8 @@
 # 自適應自修系統路線圖
 
+2026-11-27：以實際 PyAV 編解碼合成 MP4（MPEG-4/AAC）及 WebM（VP8/Opus），每檔含 20 個視訊畫面與兩條不同音軌，確認只解碼第一音軌及超限拒絕。無音軌 MP4、損壞容器及模擬解碼超限均未建立 SRT，亦未建立 Whisper 模型。Windows Python 25 項通過、1 項 POSIX 跳過，Node 33 項通過，安裝、語法、編譯與 diff 檢查通過。前版 f6d1d23 CI 與 CodeQL 均成功。完整 60 分鐘、截斷容器、真模型視訊推論及跨硬體仍待驗收。
+
+
 2026-11-27：新增 MP3、M4A、MP4（AAC 音軌）與 WebM（Opus 音軌）實際 PyAV 編解碼回歸測試，使用 48 kHz 合成音訊驗證重取樣至 16 kHz、3 秒限額接受及 1 秒限額拒絕。Windows Python 23 項通過、1 項 POSIX 跳過，Node 33 項通過，語法與 diff 檢查通過。前版 bf7ee0a 的 Linux CI 與 CodeQL 已成功。短音訊測試尚未涵蓋完整 60 分鐘、視訊畫面、多音軌及跨硬體長期負載。
 
 2026-11-26：POSIX 轉錄工作使用獨立 session/process group，取消、逾時、正常結束時以 SIGKILL 清理仍在群組內的程序；避免繼承 stderr pipe 阻塞根程序回收。新增根程序先退出後以檔案鎖驗證子程序清理的 POSIX 回歸測試。Windows Python 22 項通過、1 項 POSIX 跳過，Node 33 項通過，語法與 diff 檢查通過。Linux CI 尚待驗證；群組逃逸、宿主異常退出及 POSIX 整組 CPU／記憶體限制仍未涵蓋。

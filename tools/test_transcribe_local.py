@@ -72,6 +72,88 @@ class TranscriptionTests(unittest.TestCase):
                     with self.assertRaises(TranscriptionLimitError):
                         decode_bounded(path, max_seconds=1)
 
+    def test_video_with_multiple_audio_tracks(self):
+        import importlib.util
+        if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
+            self.skipTest('Optional PyAV and NumPy dependencies')
+        import av
+        import numpy as np
+        from transcribe_local import decode_bounded
+        with tempfile.TemporaryDirectory() as folder:
+            for suffix, video_codec, audio_codec in [('mp4', 'mpeg4', 'aac'), ('webm', 'libvpx', 'libopus')]:
+                with self.subTest(format=suffix):
+                    path = Path(folder) / f'video.{suffix}'
+                    with av.open(str(path), 'w') as container:
+                        video = container.add_stream(video_codec, rate=10)
+                        video.width = video.height = 64
+                        video.pix_fmt = 'yuv420p'
+                        tracks = [container.add_stream(audio_codec, rate=48000) for _ in range(2)]
+                        for track in tracks:
+                            track.layout = 'mono'
+                        for index in range(20):
+                            frame = av.VideoFrame.from_ndarray(
+                                np.full((64, 64, 3), index * 10, dtype=np.uint8), format='rgb24')
+                            for packet in video.encode(frame):
+                                container.mux(packet)
+                            for track, amplitude in zip(tracks, (0, 12000)):
+                                frame = av.AudioFrame.from_ndarray(
+                                    np.full((1, 4800), amplitude, dtype=np.int16), format='s16', layout='mono')
+                                frame.sample_rate = 48000
+                                for packet in track.encode(frame):
+                                    container.mux(packet)
+                        for stream in [video, *tracks]:
+                            for packet in stream.encode(None):
+                                container.mux(packet)
+                    with av.open(str(path)) as container:
+                        self.assertEqual(len(container.streams.audio), 2)
+                        self.assertEqual(sum(1 for _ in container.decode(video=0)), 20)
+                    audio = decode_bounded(path, max_seconds=3)
+                    self.assertGreaterEqual(len(audio), 30000)
+                    self.assertLess(len(audio), 48000)
+                    self.assertLess(float(np.max(np.abs(audio))), 0.001)
+                    with av.open(str(path)) as container:
+                        peak = max(float(np.max(np.abs(frame.to_ndarray())))
+                                   for frame in container.decode(audio=1))
+                        self.assertGreater(peak, 0.1)
+                    with self.assertRaises(TranscriptionLimitError):
+                        decode_bounded(path, max_seconds=1)
+
+    def test_invalid_media_does_not_create_subtitles(self):
+        import importlib.util
+        if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
+            self.skipTest('Optional PyAV and NumPy dependencies')
+        import av
+        import numpy as np
+        from unittest.mock import Mock
+        fake_module = ModuleType('faster_whisper')
+        fake_module.WhisperModel = Mock()
+        with tempfile.TemporaryDirectory() as folder:
+            video_path = Path(folder) / 'silent.mp4'
+            with av.open(str(video_path), 'w') as container:
+                video = container.add_stream('mpeg4', rate=10)
+                video.width = video.height = 64
+                video.pix_fmt = 'yuv420p'
+                frame = av.VideoFrame.from_ndarray(np.zeros((64, 64, 3), dtype=np.uint8), format='rgb24')
+                for packet in video.encode(frame):
+                    container.mux(packet)
+                for packet in video.encode(None):
+                    container.mux(packet)
+            corrupt = Path(folder) / 'corrupt.mp4'
+            corrupt.write_bytes(b'not a media container')
+            with patch.dict(sys.modules, {'faster_whisper': fake_module}):
+                for source in (video_path, corrupt):
+                    with self.subTest(source=source.name):
+                        dest = source.with_suffix('.srt')
+                        with self.assertRaises((IndexError, ValueError, av.FFmpegError)):
+                            transcribe(source, dest)
+                        self.assertFalse(dest.exists())
+                dest = Path(folder) / 'limited.srt'
+                with patch('transcribe_local.decode_bounded', side_effect=TranscriptionLimitError('limit')):
+                    with self.assertRaises(TranscriptionLimitError):
+                        transcribe(video_path, dest)
+                self.assertFalse(dest.exists())
+                fake_module.WhisperModel.assert_not_called()
+
     def test_input_validation_preserves_existing_output(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / 'lesson.mp3'
