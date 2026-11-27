@@ -446,6 +446,23 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(folders), 1)
         self.assertFalse(folders[0].exists())
 
+    def test_timeout_recovery_wait_is_bounded(self):
+        from unittest.mock import Mock
+        process = Mock(spec=['communicate', 'kill', 'returncode'])
+        process.communicate.side_effect = subprocess.TimeoutExpired('synthetic', 1)
+        try:
+            with patch('local_server.launch_worker', return_value=process) as launch, patch('local_server.stop_process_tree'):
+                status, body = self.request('POST', '/api/transcribe', WAV, self.auth())
+                self.assertEqual(status, 504)
+                self.assertIn('未能確認', json.loads(body)['error'])
+                self.wait_for_available_slot()
+                self.assertEqual(self.request('POST', '/api/transcribe', WAV, self.auth())[0], 503)
+                launch.assert_called_once()
+            self.assertEqual([call.kwargs['timeout'] for call in process.communicate.call_args_list], [1800, 10])
+        finally:
+            with self.server.lock:
+                self.server.recovery_required = False
+
     def test_success_mock_transcription_and_cleanup(self):
         class FakeProcess:
             returncode = 0

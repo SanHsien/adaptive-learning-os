@@ -103,6 +103,7 @@ class LocalServer(ThreadingHTTPServer):
         self.model = model
         self.lock = threading.Lock()
         self.active = None
+        self.recovery_required = False
         self.early_cancellations = {}
 
     def server_close(self):
@@ -196,6 +197,8 @@ class Handler(SimpleHTTPRequestHandler):
         with self.server.lock:
             now = time.monotonic()
             self.server.early_cancellations = {key: expiry for key, expiry in self.server.early_cancellations.items() if expiry > now}
+            if self.server.recovery_required:
+                return self._json(503, {'error': '轉錄程序終止狀態未確認，請重新啟動本機服務'})
             if self.server.active is not None:
                 return self._json(409, {'error': '已有轉錄進行中'})
             job = {'id': job_id, 'cancel': threading.Event(), 'process': None}
@@ -232,10 +235,13 @@ class Handler(SimpleHTTPRequestHandler):
                     _, errors = process.communicate(timeout=1800)
                 except subprocess.TimeoutExpired:
                     try:
-                        stop_process_tree(process)
+                        with self.server.lock:
+                            stop_process_tree(process)
+                        process.communicate(timeout=10)
                     except (OSError, subprocess.TimeoutExpired):
-                        process.kill()
-                    process.communicate()
+                        with self.server.lock:
+                            self.server.recovery_required = True
+                        return self._json(504, {'error': '轉錄逾時，未能確認程序已終止，請重新啟動本機服務'})
                     return self._json(504, {'error': '轉錄逾時，已終止'})
                 with self.server.lock:
                     close_worker_job(process)
