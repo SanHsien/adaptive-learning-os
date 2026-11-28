@@ -1,5 +1,7 @@
 # Security review
 
+2026-11-28：修復 OCR Bitmap、Canvas 與 PDF 頁面資源未及時釋放的問題，取消時等待 PDF render 結束再清理。Node 36/36、Chromium E2E 及同一 context 三輪 20 頁合成掃描匯入通過；活動峰值與更長期穩定性待驗收。修復 commit：766391d8bfa5625189f772a587ee30c5d6677178。
+
 2026-11-28：OCR Worker 終止時原辨識 Promise 可能懸置；以取消訊號結束等待並於 finally 清理，回歸測試模擬永不結束的辨識 Promise。Node 35/35、Chromium 完整 E2E exit 0。修復 commit：943737924e78593bbb35250333aab7f5ac5ce8e2。
 
 2026-11-28：修正分段字幕重疊及越界時間碼（0ef1fe8），新增毫秒精度負向測試與短 MP4/WebM 真模型驗收。Node 35/35、Python 37 通過及 1 POSIX 跳過；首次一小時 GPU 時間軸驗證失敗，修正後複測尚待結果。
