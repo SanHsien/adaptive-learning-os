@@ -158,6 +158,7 @@ def main():
     parser = argparse.ArgumentParser(description='Sample real Whisper process-tree resources')
     parser.add_argument('--duration-seconds', type=int, default=45, choices=range(30, MAX_AUDIO_SECONDS + 1), metavar='30..3600')
     parser.add_argument('--device', choices=('cpu', 'cuda'), default='cpu')
+    parser.add_argument('--batched', action='store_true')
     options = parser.parse_args()
     if os.name != 'nt':
         raise RuntimeError('Windows process counters required')
@@ -174,6 +175,8 @@ def main():
             os.environ['PATH'] = os.pathsep.join([*(str(p) for p in dll_dirs), os.environ['PATH']])
         command = [str(interpreter), str(ROOT / 'tools' / 'transcribe_local.py'),
                    str(source), '--output', str(target), '--model', 'small', '--device', options.device]
+        if options.batched:
+            command.append('--batched')
         process = launch_worker(command)
         start = time.monotonic()
         peak_bytes = 0
@@ -197,7 +200,7 @@ def main():
             print(json.dumps({
                 'result': 'PASS', 'workload': 'synthetic repeated Chinese speech',
                 'requested_audio_seconds': options.duration_seconds,
-                'device': options.device, 'cue_count': cues, 'last_cue_seconds': last_cue,
+                'device': options.device, 'batched': options.batched, 'cue_count': cues, 'last_cue_seconds': last_cue,
                 'source_bytes': source.stat().st_size,
                 'wall_seconds': round(time.monotonic() - start, 2),
                 'sampled_process_tree_cpu_seconds': round(sum(cpu_by_pid.values()), 2),

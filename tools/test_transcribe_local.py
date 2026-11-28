@@ -355,6 +355,19 @@ class TranscriptionTests(unittest.TestCase):
         self.assertEqual(model.chunks, [[0, 1, 2, 3], [4, 5, 6, 7], [8]])
         self.assertEqual([(s.start, s.end) for s in segments], [(0, .5), (2, 2.5), (4, 4.5)])
 
+    def test_batched_inference_options(self):
+        from unittest.mock import Mock
+        from transcribe_local import transcribe_segments
+
+        model = Mock()
+        model.transcribe.return_value = iter([SimpleNamespace(start=0, end=1, text='speech')]), None
+        list(transcribe_segments(model, [0] * 16000, 'zh', batched=True))
+        self.assertEqual(model.transcribe.call_args.kwargs, {
+            'language': 'zh', 'vad_filter': True, 'batch_size': 2,
+            'vad_parameters': {'min_silence_duration_ms': 100,
+                               'max_speech_duration_s': 30, 'speech_pad_ms': 200},
+        })
+
     def test_chunk_boundary_and_overlapping_model_cues(self):
         from transcribe_local import transcribe_segments
 

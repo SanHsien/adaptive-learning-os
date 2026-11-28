@@ -198,12 +198,19 @@ def render_srt(segments):
     return '\n\n'.join(blocks) + '\n'
 
 
-def transcribe_segments(model, audio, language):
+def transcribe_segments(model, audio, language, *, batched=False):
     """Limit feature extraction memory while preserving the global timeline."""
     chunk_samples = INFERENCE_CHUNK_SECONDS * SAMPLE_RATE
     for offset in range(0, len(audio), chunk_samples):
         chunk = audio[offset:offset + chunk_samples]
-        segments, _ = model.transcribe(chunk, language=language, vad_filter=True)
+        options = {'language': language, 'vad_filter': True}
+        if batched:
+            options.update(batch_size=2, vad_parameters={
+                'min_silence_duration_ms': 100,
+                'max_speech_duration_s': 30,
+                'speech_pad_ms': 200,
+            })
+        segments, _ = model.transcribe(chunk, **options)
         offset_seconds = offset / SAMPLE_RATE
         chunk_end = (offset + len(chunk)) / SAMPLE_RATE
         previous_end = offset_seconds
@@ -218,7 +225,7 @@ def transcribe_segments(model, audio, language):
             previous_end = end
 
 
-def transcribe(input_path, output_path, model_name='small', language='zh', device='cpu'):
+def transcribe(input_path, output_path, model_name='small', language='zh', device='cpu', *, batched=False):
     source = Path(input_path).resolve(strict=True)
     target = Path(output_path).resolve()
     if not source.is_file() or source.suffix.lower() not in SUPPORTED:
@@ -234,8 +241,14 @@ def transcribe(input_path, output_path, model_name='small', language='zh', devic
     except ImportError as exc:
         raise RuntimeError('請先安裝本機語音辨識套件：python -m pip install faster-whisper') from exc
     audio = decode_bounded(source)
-    model = WhisperModel(model_name, device=device, compute_type='int8')
-    result = render_srt(transcribe_segments(model, audio, language))
+    model_options = {'device': device, 'compute_type': 'int8'}
+    if batched and device == 'cpu':
+        model_options['cpu_threads'] = 4
+    model = WhisperModel(model_name, **model_options)
+    if batched:
+        from faster_whisper import BatchedInferencePipeline
+        model = BatchedInferencePipeline(model=model)
+    result = render_srt(transcribe_segments(model, audio, language, batched=batched))
     # Exclusive create prevents overwriting a file created concurrently.
     with target.open('x', encoding='utf-8', newline='\n') as handle:
         handle.write(result)
@@ -249,10 +262,11 @@ def main():
     parser.add_argument('--model', default='small', help='模型名稱或已下載的本機模型資料夾')
     parser.add_argument('--language', default='zh', help='語言代碼，預設 zh')
     parser.add_argument('--device', default='cpu', choices=('cpu', 'cuda'))
+    parser.add_argument('--batched', action='store_true', help='Experimental batched inference')
     args = parser.parse_args()
     source = Path(args.input)
     try:
-        result = transcribe(source, args.output or source.with_suffix('.srt'), args.model, args.language, args.device)
+        result = transcribe(source, args.output or source.with_suffix('.srt'), args.model, args.language, args.device, batched=args.batched)
     except TranscriptionLimitError as exc:
         parser.exit(LIMIT_EXIT_CODE, str(exc) + '\n')
     print(f'逐字稿已產生：{result}（請校對後匯入正確家人及科目）')

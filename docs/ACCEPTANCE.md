@@ -200,3 +200,6 @@ RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推
 2026-11-28：CPU small INT8 同一 30 秒合成中文音訊四組推論比較（chunks d592c1、49e515、9b6723，exit 0）。threads/beam 0/5、4/5、8/5、4/1 分別耗時 31.47、31.98、32.43、29.70 秒；字幕段數 12、12、7、12。8 threads 組文字出現重複語句缺漏，其餘三組輸出文字一致。單一短合成樣本不代表一般辨識準確率或長音訊效能；未修改正式推論參數。遠端 CI、CodeQL 均成功於 766391d（chunk c970f9）。
 
 2026-11-28：CPU 批次推論候選測試（BatchedInferencePipeline、small INT8、beam 5、120 秒合成語音；chunk 8f3d78，exit 0）。batch 4/8 分別耗時 13.92/14.47 秒，各 5 段字幕、末段 120 秒、320 字元，輸出一致。但均將部分「二加三」辨識成 2-3，且末尾有不完整語句。速度有潛力，教材算式錯誤須處理；未採用為正式預設，尚須同長度基準與品質比較。
+
+2026-11-28：CPU 批次候選初次 3600 秒測試（batch 4、預設執行緒）因 MKL 配置記憶體失敗，exit 1（648ed6）。改為 batch 2、CPU threads 4，VAD 最短靜音 100 ms、最長語音 30 秒、padding 200 ms；120 秒正式 worker PASS（a72673，exit 0），17.24 秒、4 段字幕、末段 120 秒、Working Set 取樣峰值 770.2 MiB。3600 秒正式 worker PASS（1e5c13，exit 0），合成重複中文 M4A 104493653 bytes、120 段字幕、末段 3600 秒、wall 416.19 秒、程序樹取樣累積 CPU 1611.7 秒、Working Set 峰值 984.3 MiB、最多 2 程序、1464 次取樣。指令為專案 .venv 的 `python -u tools/real_whisper_resource_smoke.py --duration-seconds 3600 --device cpu --batched`。目前為 opt-in CLI，HTTP 預設仍使用一般推論。合成重複語音及時間軸測試不能證明多樣教材辨識準確度；尚需品質比較、正式 HTTP 路徑及長視訊驗收。
+回歸：npm ci 42 套件、0 已知漏洞（Tesseract postinstall 警告）；Node 36/36、Python 38 通過及 1 POSIX 跳過、JS 語法及 diff 檢查，exit 0（b2e958）。
