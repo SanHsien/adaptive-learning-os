@@ -41,6 +41,16 @@ const FORMATS = {
 const IMAGE_TYPES = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'};
 const MEDIA_TYPES = {mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm'};
 
+// Extract plain subtitle text without generating HTML or retaining angle brackets.
+function subtitlePlainText(line) {
+  const parts = line.split(/([<>])/);
+  return parts.filter((part, index) => {
+    if (part === '<' || part === '>') return false;
+    // Only a complete, non-nested tag is discarded; incomplete text is kept.
+    return !(parts[index - 1] === '<' && parts[index + 1] === '>');
+  }).join('').trim();
+}
+
 export function parseSubtitle(text, extension) {
   if (typeof text !== 'string' || !['srt', 'vtt'].includes(extension)) throw new Error('逐字稿格式無效');
   const raw = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim();
@@ -53,7 +63,7 @@ export function parseSubtitle(text, extension) {
     if (!lines.length || (extension === 'vtt' && /^(NOTE|STYLE|REGION)(?:\s|$)/.test(lines[0]))) continue;
     let index = lines.findIndex(line => timing.test(line));
     if (index < 0 || index > 1 || !lines.slice(index + 1).length) throw new Error('逐字稿時間碼或字幕內容無效');
-    const words = lines.slice(index + 1).map(line => line.replace(/<[^<>]*>/g, '').replace(/[<>]/g, '').trim()).filter(Boolean);
+    const words = lines.slice(index + 1).map(subtitlePlainText).filter(Boolean);
     if (!words.length) throw new Error('逐字稿字幕內容不可為空');
     output.push(words.join(' '));
   }

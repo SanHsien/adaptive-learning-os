@@ -1,6 +1,6 @@
 # 自適應自修系統路線圖
 
-2026-11-28: CodeQL #2, #3, #10: request extensions select server-owned literal filenames in a temporary directory. #4, #5: preview uses validated MIME types and browser-generated blob URLs. #6: malformed subtitle markup cannot retain literal angle brackets. Regression: Node 35 passed; Python 29 passed, 1 POSIX skip; both Chromium synthetic browser suites passed. Remote CodeQL confirmation pending.
+2026-11-28: CodeQL #2, #3, #10: request extensions select server-owned literal filenames in a temporary directory. #4, #5: preview uses validated MIME types and browser-generated blob URLs. #6: malformed subtitle markup cannot retain literal angle brackets. Regression: Node 35 passed; Python 29 passed, 1 POSIX skip; both Chromium synthetic browser suites passed. GitHub reports all six original alerts fixed on 2bc8199. Follow-up #11 flagged the subtitle regex; the revised parser splits and filters delimiters before joining, including removal of literal mathematical angle signs. Node 35 passed and Chromium browser smoke passed for the revised parser; remote confirmation of #11 pending.
 
 2026-11-28：採用 main 單一分支開發，合併兩個 Dependabot 更新並同步 PDF.js 6.5.438 的瀏覽器執行檔及授權。停用定期版本更新 PR，保留安全更新與相依套件新鮮度檢查。Node 33 項通過、Python 28 項通過及 1 項 POSIX 跳過，Chromium 149 合成資料瀏覽器 E2E 通過。
 

@@ -88,6 +88,18 @@ test('DOCX 擷取器回傳內容與格式且掃描不到文字時拒絕', async 
 test('Malformed subtitle markup cannot leave literal angle brackets', async () => {
   const result = await parseMaterialFile(textFile('nested.srt', '1\n00:00:00,000 --> 00:00:01,000\n<<b>text</b>> <unfinished'));
   assert.equal(result.content, 'text unfinished');
+  const samples = [
+    ['<scr<script>ipt>payload</script>', 'scriptpayload'],
+    ['before <b>bold</b> after', 'before bold after'],
+    ['a > b < c', 'a  b  c'],
+    ['<a<b>c', 'ac'],
+    ['<unfinished', 'unfinished']
+  ];
+  for (const [input, expected] of samples) {
+    const parsed = await parseMaterialFile(textFile('nested.srt', `1\n00:00:00,000 --> 00:00:01,000\n${input}`));
+    assert.equal(parsed.content, expected);
+    assert.doesNotMatch(parsed.content, /[<>]/);
+  }
 });
 
 test('Preview extensions cannot resolve inherited properties', async () => {
