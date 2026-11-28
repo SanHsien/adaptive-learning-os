@@ -3,6 +3,7 @@
 Run with system Python (Playwright installed) and .venv Python (Whisper installed).
 """
 
+import argparse
 import os
 import subprocess
 import tempfile
@@ -33,13 +34,13 @@ def make_synthetic_audio(target):
     assert target.is_file() and target.stat().st_size > 44, 'no synthesized WAV'
 
 
-def run():
+def run(*, batched=False):
     if os.name != 'nt' or not WHISPER_PYTHON.is_file():
         raise RuntimeError('Windows and project .venv Whisper Python are required')
     with tempfile.TemporaryDirectory(prefix='adaptive-real-smoke-') as folder:
         audio = Path(folder) / 'synthetic.wav'
         make_synthetic_audio(audio)
-        server = LocalServer(('127.0.0.1', 0), Handler)
+        server = LocalServer(('127.0.0.1', 0), Handler, batched=batched)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
@@ -92,4 +93,6 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batched', action='store_true')
+    run(batched=parser.parse_args().batched)

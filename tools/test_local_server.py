@@ -540,15 +540,20 @@ class ServerTests(unittest.TestCase):
             Path(output).write_text('1\n00:00:00,000 --> 00:00:01,000\n合成教材\n', encoding='utf-8')
             return FakeProcess()
 
-        with patch('local_server.subprocess.Popen', side_effect=fake_launch):
-            status, body = self.request('POST', '/api/transcribe', WAV, self.auth())
-        self.assertEqual(status, 200)
-        self.assertIn('合成教材', json.loads(body)['srt'])
-        for _ in range(50):
-            if self.server.active is None:
-                break
-            time.sleep(.01)
-        self.assertIsNone(self.server.active)
+        try:
+            for batched in (False, True):
+                with self.subTest(batched=batched):
+                    self.server.batched = batched
+                    with patch('local_server.subprocess.Popen', side_effect=fake_launch) as launch:
+                        status, body = self.request('POST', '/api/transcribe', WAV, {
+                            **self.auth(), 'X-Batched': 'true',
+                        })
+                    self.assertEqual(status, 200)
+                    self.assertIn('合成教材', json.loads(body)['srt'])
+                    self.assertEqual('--batched' in launch.call_args.args[0], batched)
+                    self.wait_for_available_slot()
+        finally:
+            self.server.batched = False
 
 
 if __name__ == '__main__':

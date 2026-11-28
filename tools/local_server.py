@@ -97,10 +97,11 @@ def valid_media(ext, header):
 class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, handler, model='small'):
+    def __init__(self, address, handler, model='small', *, batched=False):
         super().__init__(address, handler)
         self.token = secrets.token_urlsafe(32)
         self.model = model
+        self.batched = batched
         self.lock = threading.Lock()
         self.active = None
         self.recovery_required = False
@@ -236,6 +237,8 @@ class Handler(SimpleHTTPRequestHandler):
                     return self._json(409, {'error': '轉錄已取消'})
                 target = Path(folder) / 'output.srt'
                 command = [sys.executable, str(ROOT / 'tools' / 'transcribe_local.py'), str(source), '--output', str(target), '--model', self.server.model]
+                if self.server.batched:
+                    command.append('--batched')
                 with self.server.lock:
                     if job['cancel'].is_set():
                         return self._json(409, {'error': '轉錄已取消'})
@@ -307,8 +310,9 @@ def main():
     parser = argparse.ArgumentParser(description='本機限定的一鍵 Whisper 自修網站，僅綁定 127.0.0.1')
     parser.add_argument('--port', type=int, default=4173)
     parser.add_argument('--model', default='small')
+    parser.add_argument('--batched', action='store_true', help='啟用 CPU 批次轉錄')
     options = parser.parse_args()
-    with LocalServer(('127.0.0.1', options.port), Handler, options.model) as server:
+    with LocalServer(('127.0.0.1', options.port), Handler, options.model, batched=options.batched) as server:
         print(f'本機自修網站：http://127.0.0.1:{server.server_port}', flush=True)
         try:
             server.serve_forever()

@@ -80,3 +80,5 @@ python tools/transcribe_local.py "C:\path\lesson.mp3" --model small --language z
 OCR 資源診斷：`python -u tools/browser_ocr_resource_smoke.py --cycles 100`，沿用上述 Playwright 瀏覽器設定；驗證 Worker 建立與銷毀、取消結果及本機請求，Windows 另取樣 CDP 回報程序的記憶體。此為合成圖片診斷，不代表長期記憶體驗收。
 
 短視訊真模型驗收可執行 `.venv/Scripts/python.exe -u tools/real_whisper_video_smoke.py`（Windows SAPI、專案 Whisper small 與本機 FFmpeg，需支援 MPEG4/AAC、VP8/Opus 編碼）。以合成中文語音和畫面測試 MP4/WebM，檢查解碼樣本與字幕時間軸。
+
+CPU 批次轉錄目前為選用功能：啟動服務時加上 `--batched`（`python tools/local_server.py --batched`）。短合成語音已通過真實瀏覽器流程驗收；長影音 HTTP 與多樣教材辨識品質仍在驗收中。一般推論維持預設。
