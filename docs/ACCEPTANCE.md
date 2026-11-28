@@ -191,3 +191,5 @@ RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推
 2026-11-28：100 輪真 OCR 程序別診斷（exit 0，chunk f71d82，摘要 082337），47.39 秒，200 個 Worker 建立及銷毀，無殘留；JS heap 2.04→2.23 MiB。首末輪 Private Bytes：renderer 44.20→58.73、browser 23.20→24.14、GPU 25.07→25.24、network 19.88→20.51 MiB，合計 112.35→128.62 MiB。關閉 context 後 CDP 回報三個程序合計 57.41 MiB，renderer 不再列出；關閉 browser 後四個取樣 PID 均已退出。增量主要位於 renderer，原因及完整程序樹回收仍待驗證。
 
 2026-11-28：同版 Chromium 每組獨立啟動，控制組各 100 輪、每輪 2 次操作（chunk 677b73、af19d8，exit 0）：空白、Canvas、原生 Worker 的 Private Bytes 增量分別為 0.89、3.15、8.67 MiB，renderer 增量分別為 0.70、3.15、5.77 MiB。獨立 Tesseract 每組 100 次操作（chunk 6bb260、97129e，exit 0）：僅初始化與終止、辨識成功、啟動辨識即終止，Private Bytes 增量分別為 22.71、25.14、21.81 MiB，renderer 增量分別為 12.62、15.16、12.68 MiB；每次均確認無殘留 Worker、無外部請求，瀏覽器關閉。取消組未等待辨識內部進度，故不是完整應用取消驗收。初始化組已出現大部分增量，顯示初始化／終止路徑值得優先調查；不同組操作數、合成圖與量測節奏有差異，不能直接相減歸因或判定洩漏。
+
+2026-11-28：Chromium Headless Shell 149 大型合成掃描 PDF 網頁驗收（chunk d704ee，exit 0）。每頁 2480×3508 pixels，20 頁 2913184 bytes，8.87 秒完成，逐頁非空且頁碼順序正確，人工儲存後來源保留；21 頁 3059030 bytes，9.37 秒依 OCR 上限拒絕，原教材及來源未變更。兩次結束均無殘留 Worker、無外部請求且瀏覽器正常退出。CDP 四個程序結束取樣 Private Bytes 750.95／763.87 MiB，renderer 670.25／680.30 MiB，未量測活動峰值或多輪大型掃描的穩定性。
