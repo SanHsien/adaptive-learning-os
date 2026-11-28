@@ -83,3 +83,15 @@ test('DOCX 擷取器回傳內容與格式且掃描不到文字時拒絕', async 
     await assert.rejects(() => parseMaterialFile(file), /未擷取到文字/);
   } finally { globalThis.mammoth = previous; }
 });
+
+
+test('Malformed subtitle markup cannot leave literal angle brackets', async () => {
+  const result = await parseMaterialFile(textFile('nested.srt', '1\n00:00:00,000 --> 00:00:01,000\n<<b>text</b>> <unfinished'));
+  assert.equal(result.content, 'text unfinished');
+});
+
+test('Preview extensions cannot resolve inherited properties', async () => {
+  const file = {name: 'sample.constructor', size: 16, slice: () => ({arrayBuffer: async () => Uint8Array.from([26,69,223,163]).buffer})};
+  await assert.rejects(() => validateImageFile(file));
+  await assert.rejects(() => validateMediaFile(file));
+});

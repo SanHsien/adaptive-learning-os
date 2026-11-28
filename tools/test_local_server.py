@@ -257,6 +257,43 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request('POST', '/api/transcribe', WAV, {**self.auth(), 'X-Media-Extension': '.exe'})[0], 413)
         self.assertEqual(self.request('POST', '/api/transcribe', b'not wave', self.auth())[0], 415)
 
+    def test_request_extension_cannot_control_worker_paths(self):
+        from pathlib import Path
+
+        class FakeProcess:
+            returncode = 0
+
+            def communicate(self, timeout=None):
+                return b'', b''
+
+        for ext in ('../input.wav', '.wav/../evil', '--model', '.wav:evil'):
+            with self.subTest(ext=ext), patch('local_server.subprocess.Popen') as launch:
+                self.assertEqual(self.request('POST', '/api/transcribe', WAV,
+                    {**self.auth(), 'X-Media-Extension': ext})[0], 413)
+                launch.assert_not_called()
+        for ext, header in (('.mp3', b'ID3'), ('.wav', WAV), ('.m4a', b'0000ftyp'),
+                            ('.mp4', b'0000ftyp'), ('.webm', bytes([26, 69, 223, 163]))):
+            with self.subTest(ext=ext):
+                paths = []
+
+                def launch(command, **kwargs):
+                    source = Path(command[2])
+                    target = Path(command[4])
+                    self.assertEqual(source.name, 'input' + ext)
+                    self.assertEqual(source.parent, target.parent)
+                    self.assertEqual(target.name, 'output.srt')
+                    self.assertEqual(source.read_bytes(), header)
+                    paths.append(source.parent)
+                    target.write_text('1\n00:00:00,000 --> 00:00:01,000\ntext\n', encoding='utf-8')
+                    return FakeProcess()
+
+                with patch('local_server.subprocess.Popen', side_effect=launch):
+                    self.assertEqual(self.request('POST', '/api/transcribe', header,
+                        {**self.auth(), 'X-Media-Extension': ext})[0], 200)
+                self.wait_for_available_slot()
+                self.assertEqual(len(paths), 1)
+                self.assertFalse(paths[0].exists())
+
     def test_incomplete_body_releases_slot(self):
         headers = self.auth()
         conn = socket.create_connection(('127.0.0.1', self.server.server_port), timeout=5)

@@ -207,7 +207,17 @@ class Handler(SimpleHTTPRequestHandler):
             self.server.active = job
         try:
             with tempfile.TemporaryDirectory(prefix='adaptive-transcribe-') as folder:
-                source = Path(folder) / ('input' + ext)
+                # Select a server-owned literal filename; never concatenate request data.
+                if ext == '.mp3':
+                    source = Path(folder) / 'input.mp3'
+                elif ext == '.wav':
+                    source = Path(folder) / 'input.wav'
+                elif ext == '.m4a':
+                    source = Path(folder) / 'input.m4a'
+                elif ext == '.mp4':
+                    source = Path(folder) / 'input.mp4'
+                else:
+                    source = Path(folder) / 'input.webm'
                 with source.open('xb') as stream:
                     remaining = size
                     while remaining:

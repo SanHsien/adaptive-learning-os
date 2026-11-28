@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 from local_server import Handler, LocalServer
 
@@ -76,15 +76,17 @@ def run():
                     page.locator('#addSubject button').click()
                     page.locator('#subject').select_option(label='數學')
                     page.locator('#materialFile').set_input_files({
-                        'name': 'synthetic.wav', 'mimeType': 'audio/wav',
+                        'name': 'synthetic.wav', 'mimeType': 'text/html',
                         'buffer': b'RIFF\x24\x00\x00\x00WAVEfmt ' + b'\x00' * 32})
+                    page.wait_for_function("() => document.querySelector('#mediaPreview').src.startsWith('blob:')")
+                    assert page.locator('#mediaPreview').evaluate("async element => (await fetch(element.src)).headers.get('content-type') === 'audio/wav'")
                     page.locator('#runTranscription').click()
                     page.get_by_text('本機轉錄完成', exact=False).wait_for()
                     assert page.locator('#material').input_value() == '合成教材'
                     page.locator('#material').fill('合成教材，已人工校對')
                     page.locator('#materialForm button').click()
                     page.get_by_text('這個科目的教材已儲存', exact=False).wait_for()
-                    assert page.locator('#material').input_value() == '合成教材，已人工校對'
+                    expect(page.locator('#material')).to_have_value('\u5408\u6210\u6559\u6750\uff0c\u5df2\u4eba\u5de5\u6821\u5c0d')
                     blocking['enabled'] = True
                     page.locator('#materialFile').set_input_files({
                         'name': 'cancel.wav', 'mimeType': 'audio/wav',
@@ -104,10 +106,11 @@ def run():
                     page.locator('#subjectName').fill('數學')
                     page.locator('#addSubject button').click()
                     page.locator('#subject').select_option(label='數學')
-                    assert page.locator('#material').input_value() == ''
+                    expect(page.locator('#contextTitle')).to_have_text('\u5408\u6210\u4e59 / \u6578\u5b78')
+                    expect(page.locator('#material')).to_have_value('')
                     page.locator('#learner').select_option(label='合成甲')
                     page.locator('#subject').select_option(label='數學')
-                    assert page.locator('#material').input_value() == '合成教材，已人工校對'
+                    expect(page.locator('#material')).to_have_value('\u5408\u6210\u6559\u6750\uff0c\u5df2\u4eba\u5de5\u6821\u5c0d')
                     assert not errors, errors
                     print('PASS: browser synthetic transcription, scoped save, cross-learner cancellation', flush=True)
                 finally:

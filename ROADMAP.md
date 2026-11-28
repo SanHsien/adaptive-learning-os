@@ -1,5 +1,7 @@
 # 自適應自修系統路線圖
 
+2026-11-28: CodeQL #2, #3, #10: request extensions select server-owned literal filenames in a temporary directory. #4, #5: preview uses validated MIME types and browser-generated blob URLs. #6: malformed subtitle markup cannot retain literal angle brackets. Regression: Node 35 passed; Python 29 passed, 1 POSIX skip; both Chromium synthetic browser suites passed. Remote CodeQL confirmation pending.
+
 2026-11-28：採用 main 單一分支開發，合併兩個 Dependabot 更新並同步 PDF.js 6.5.438 的瀏覽器執行檔及授權。停用定期版本更新 PR，保留安全更新與相依套件新鮮度檢查。Node 33 項通過、Python 28 項通過及 1 項 POSIX 跳過，Chromium 149 合成資料瀏覽器 E2E 通過。
 
 2026-11-28：新增真實 OS 子程序的 HTTP 逾時回歸，以測試替換首次 communicate 等待為 0.1 秒，保留正式終止及回收路徑。驗證 HTTP 504、程序退出、暫存目錄移除、工作槽釋放及下一請求可進入驗證流程；Windows Python 28 項通過、1 項 POSIX 跳過。此為合成睡眠程序，未驗證真 Whisper 逾時或實際終止失敗情境。

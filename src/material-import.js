@@ -53,7 +53,7 @@ export function parseSubtitle(text, extension) {
     if (!lines.length || (extension === 'vtt' && /^(NOTE|STYLE|REGION)(?:\s|$)/.test(lines[0]))) continue;
     let index = lines.findIndex(line => timing.test(line));
     if (index < 0 || index > 1 || !lines.slice(index + 1).length) throw new Error('逐字稿時間碼或字幕內容無效');
-    const words = lines.slice(index + 1).map(line => line.replace(/<[^>]*>/g, '').trim()).filter(Boolean);
+    const words = lines.slice(index + 1).map(line => line.replace(/<[^<>]*>/g, '').replace(/[<>]/g, '').trim()).filter(Boolean);
     if (!words.length) throw new Error('逐字稿字幕內容不可為空');
     output.push(words.join(' '));
   }
@@ -63,7 +63,7 @@ export function parseSubtitle(text, extension) {
 
 export async function validateMediaFile(file) {
   const extension = file?.name?.toLowerCase().split('.').pop();
-  const type = MEDIA_TYPES[extension];
+  const type = Object.hasOwn(MEDIA_TYPES, extension) ? MEDIA_TYPES[extension] : null;
   if (!type) throw new Error('影音僅支援 MP3、WAV、M4A、MP4、WebM');
   if (!file.size || file.size > 100 * 1024 * 1024) throw new Error('影音檔案上限為 100 MB，空檔不可匯入');
   const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer());
@@ -78,7 +78,7 @@ export async function validateMediaFile(file) {
 
 export async function validateImageFile(file) {
   const extension = file?.name?.toLowerCase().split('.').pop();
-  const type = IMAGE_TYPES[extension];
+  const type = Object.hasOwn(IMAGE_TYPES, extension) ? IMAGE_TYPES[extension] : null;
   if (!type) throw new Error('圖片僅支援 PNG、JPEG、WebP');
   if (!file.size || file.size > 8 * 1024 * 1024) throw new Error('圖片檔案上限為 8 MB，空檔不可匯入');
   const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());

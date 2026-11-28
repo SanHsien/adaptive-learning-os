@@ -250,9 +250,10 @@ def run():
             assert 'mixed.pdf' in page.locator('#materialOrigin').inner_text()
             # Image preview requires manual text; raw image is not stored in the backup.
             tiny_png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==')
-            page.locator('#materialFile').set_input_files({'name': 'diagram.png', 'mimeType': 'image/png', 'buffer': tiny_png})
+            page.locator('#materialFile').set_input_files({'name': 'diagram.png', 'mimeType': 'text/html', 'buffer': tiny_png})
             page.get_by_text('圖片可按', exact=False).wait_for()
             assert page.locator('#imagePanel').is_visible()
+            assert page.locator('#imagePreview').evaluate("async element => element.src.startsWith('blob:') && (await fetch(element.src)).headers.get('content-type') === 'image/png'")
             assert page.locator('#material').input_value() == ''
             # Run the bundled OCR engine in Chrome with synthetic local image data.
             ocr_png = page.evaluate('''() => {

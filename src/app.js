@@ -24,6 +24,15 @@ function cancelImport() {
   activeImportController = null;
 }
 
+function createPreviewUrl(file, type) {
+  const url = URL.createObjectURL(new Blob([file], {type}));
+  if (!url.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
+    throw new Error('Invalid preview URL');
+  }
+  return url;
+}
+
 function clearImagePreview() {
   pendingImageFile = null;
   if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
@@ -184,8 +193,8 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('教材選擇已變更，請重新選擇圖片');
     clearImagePreview();
     clearMediaPreview();
-    imagePreviewUrl = URL.createObjectURL(file);
-    $('imagePreview').src = imagePreviewUrl;
+    imagePreviewUrl = createPreviewUrl(file, source.type);
+    $('imagePreview').setAttribute('src', imagePreviewUrl);
     $('imagePanel').hidden = false;
     pendingMaterialSource = source;
     pendingImageFile = file;
@@ -200,8 +209,8 @@ $('materialFile').addEventListener('change', event => safe(async () => {
     if (owner !== learnerId || course !== subjectId || generation !== importGeneration) throw new Error('學習空間已切換，請重新選擇影音');
     clearImagePreview();
     clearMediaPreview();
-    mediaPreviewUrl = URL.createObjectURL(file);
-    $('mediaPreview').src = mediaPreviewUrl;
+    mediaPreviewUrl = createPreviewUrl(file, source.type);
+    $('mediaPreview').setAttribute('src', mediaPreviewUrl);
     $('mediaPreview').setAttribute('aria-label', source.name);
     $('mediaPanel').hidden = false;
     pendingMaterialSource = source;

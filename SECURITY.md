@@ -1,5 +1,7 @@
 # 安全與隱私界線
 
+2026-11-28: CodeQL #2, #3, #10: request extensions select server-owned literal filenames in a temporary directory. #4, #5: preview uses validated MIME types and browser-generated blob URLs. #6: malformed subtitle markup cannot retain literal angle brackets. Regression: Node 35 passed; Python 29 passed, 1 POSIX skip; both Chromium synthetic browser suites passed. Remote CodeQL confirmation pending.
+
 本機轉錄逾時後若無法確認程序終止，服務會拒絕後續轉錄；請檢查殘留程序及暫存資料，再重新啟動服務。
 
 
