@@ -170,8 +170,14 @@ class TranscriptionTests(unittest.TestCase):
                     container.mux(packet)
             corrupt = Path(folder) / 'corrupt.mp4'
             corrupt.write_bytes(b'not a media container')
+            import wave
+            truncated = Path(folder) / 'truncated.wav'
+            with wave.open(str(truncated), 'wb') as wav:
+                wav.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
+                wav.writeframes(b'\x00\x00' * 32000)
+            truncated.write_bytes(truncated.read_bytes()[:32044])
             with patch.dict(sys.modules, {'faster_whisper': fake_module}):
-                for source in (video_path, corrupt):
+                for source in (video_path, corrupt, truncated):
                     with self.subTest(source=source.name):
                         dest = source.with_suffix('.srt')
                         with self.assertRaises((IndexError, ValueError, av.FFmpegError)):

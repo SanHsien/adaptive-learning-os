@@ -32,9 +32,16 @@ def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
                     raise TranscriptionLimitError('音訊超過 60 分鐘，請分段轉錄')
                 buffer.write(frame.to_ndarray().tobytes())
 
-        for frame in container.decode(audio=0):
-            frame.pts = None
-            append_frames(resampler.resample(frame))
+        if not container.streams.audio:
+            raise ValueError('影音沒有可解碼的音訊')
+        for packet in container.demux(container.streams.audio[0]):
+            if packet.is_corrupt:
+                raise ValueError('影音音訊資料損毀或截斷')
+            for frame in packet.decode():
+                if frame.is_corrupt:
+                    raise ValueError('影音音訊資料損毀或截斷')
+                frame.pts = None
+                append_frames(resampler.resample(frame))
         append_frames(resampler.resample(None))
         if not buffer.tell():
             raise ValueError('影音沒有可解碼的音訊')
