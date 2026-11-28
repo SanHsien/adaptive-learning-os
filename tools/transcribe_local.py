@@ -44,6 +44,37 @@ def validate_iso_boxes(media):
         offset += size
 
 
+def read_ebml_vint(media, *, element_id=False):
+    first = media.read(1)
+    if not first or first == b'\x00':
+        raise ValueError('WebM 區塊標頭無效或截斷')
+    width = 9 - first[0].bit_length()
+    rest = media.read(width - 1)
+    if len(rest) != width - 1 or (element_id and width > 4):
+        raise ValueError('WebM 區塊標頭無效或截斷')
+    value = int.from_bytes(first + rest, 'big')
+    if element_id:
+        return value
+    value &= (1 << (7 * width)) - 1
+    return None if value == (1 << (7 * width)) - 1 else value
+
+
+def validate_webm_bounds(media):
+    """Check declared top-level EBML element sizes; allow streaming segments."""
+    end = media.seek(0, io.SEEK_END)
+    media.seek(0)
+    while media.tell() < end:
+        element = read_ebml_vint(media, element_id=True)
+        size = read_ebml_vint(media)
+        if size is None:
+            if element != 0x18538067:
+                raise ValueError('WebM 區塊長度無效')
+            return
+        if size > end - media.tell():
+            raise ValueError('WebM 宣告長度超過實際檔案，影音已截斷')
+        media.seek(size, io.SEEK_CUR)
+
+
 def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
     """Decode mono PCM incrementally; enforce actual samples, not metadata."""
     import av
@@ -58,6 +89,8 @@ def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
                 raise ValueError('WAV 宣告長度超過實際檔案，音訊已截斷')
         if header[4:8] == b'ftyp':
             validate_iso_boxes(media)
+        if header[:4] == b'\x1a\x45\xdf\xa3':
+            validate_webm_bounds(media)
     resampler = av.AudioResampler(format='s16', layout='mono', rate=SAMPLE_RATE)
     limit = max_seconds * SAMPLE_RATE * 2
     with io.BytesIO() as buffer, av.open(str(source), mode='r') as container:
