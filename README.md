@@ -77,4 +77,6 @@ python tools/transcribe_local.py "C:\path\lesson.mp3" --model small --language z
 
 靜態網站可部署到 GitHub Pages，但 GitHub Pages 是公開入口，並不提供家人的私人登入權限。若要實際讓多位家人各自在不同裝置操作、彼此不可查看學習資料，需要下一版導入帳號登入、伺服器端權限驗證、雲端資料庫與備份加密；**不得將本機 IndexedDB 的邏輯隔離誤認為安全隔離**。
 
+OCR 資源診斷：`python -u tools/browser_ocr_resource_smoke.py --cycles 100`，沿用上述 Playwright 瀏覽器設定；驗證 Worker 建立與銷毀、取消結果及本機請求，Windows 另取樣 CDP 回報程序的記憶體。此為合成圖片診斷，不代表長期記憶體驗收。
+
 短視訊真模型驗收可執行 `.venv/Scripts/python.exe -u tools/real_whisper_video_smoke.py`（Windows SAPI、專案 Whisper small 與本機 FFmpeg，需支援 MPEG4/AAC、VP8/Opus 編碼）。以合成中文語音和畫面測試 MP4/WebM，檢查解碼樣本與字幕時間軸。

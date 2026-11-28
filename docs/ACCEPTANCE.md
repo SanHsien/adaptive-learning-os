@@ -183,3 +183,5 @@ RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推
 2026-11-28：RTX 3060 真 Whisper small GPU 一小時合成中文語音複測通過（chunk a91ef0，exit 0）：3600 秒，979 段字幕，末段 3600.0 秒，耗時 535.77 秒，取樣程序樹 Working Set 峰值 1087.0 MiB，最多 2 程序，1969 次取樣。通過字幕非重疊、時間範圍與各分段涵蓋驗證。此為單台主機合成資料測試，未量測 VRAM 或辨識準確率；CPU 與長視訊仍待驗收。
 
 2026-11-28：OCR 取消修正後，npm ci 安裝 42 套件、0 已知漏洞；Node 35/35、JS 語法及 diff 檢查通過（chunk 3e8b1b）。Chromium Headless Shell 149.0.7827.55 完整瀏覽器 E2E 通過，含掃描 PDF 跨科及跨人取消、教材隔離，並正常退出（chunk 2f0305，exit 0）。長時間循環與實際資源回收仍待驗收。
+
+2026-11-28：新增 `tools/browser_ocr_resource_smoke.py`，Chromium Headless Shell 149.0.7827.55 以合成圖片執行 100 輪（100 次成功、100 次取消），47.28 秒，200 個 Worker 建立及銷毀事件均觀測到，每輪無殘留 Worker，無外部請求，瀏覽器正常退出（chunk 7c3094，exit 0）。每輪 GC 後頁面 JS heap 2.04→2.23 MiB；CDP 回報的 4 個 Windows 瀏覽器程序 Working Set 合計 253.29→267.03 MiB，Private Bytes 109.21→125.83 MiB。記憶體仍有緩升，不能證明長期穩定；上述為輪次結束取樣，非活動期間峰值或全程序樹退出確認。大型掃描及長時間測試待驗收。
