@@ -170,8 +170,12 @@ CI `45505627385` 揭露單次真 OS 子程序取消整合測試的 Handler `fina
 
 CPU 一小時合成音訊：未分段推論時 NumPy 配置 220 MiB float32 陣列失敗；改為 120 秒分段後仍超過 1800 秒 wall-clock 限制，未產生完整 SRT。已知三個程序 PID 均消失，暫存資料夾清理未另行核對。固定分段可能切斷語句或重置語境。
 
-RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推論缺少 cublas64_12.dll；在專案 .venv 安裝 cuBLAS 12.4.5.8、cuDNN 9.1.1.17、NVRTC 12.9.86，僅設定測試程序 PATH。30 秒真模型直接測試 11.72 秒、626 bytes SRT；正式 launch_worker 測試 9.75 秒、12 段字幕、最後字幕 29.18 秒、取樣程序樹 Working Set 峰值 769.6 MiB、最多 2 個程序，退出碼 0。已檢查實際音訊樣本數及字幕時間軸。此非 GPU VRAM 峰值或辨識準確率驗收。完整 3600 秒 GPU 工作已啟動，待最終結果；HTTP 仍預設 CPU。
+RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推論缺少 cublas64_12.dll；在專案 .venv 安裝 cuBLAS 12.4.5.8、cuDNN 9.1.1.17、NVRTC 12.9.86，僅設定測試程序 PATH。30 秒真模型直接測試 11.72 秒、626 bytes SRT；正式 launch_worker 測試 9.75 秒、12 段字幕、最後字幕 29.18 秒、取樣程序樹 Working Set 峰值 769.6 MiB、最多 2 個程序，退出碼 0。已檢查實際音訊樣本數及字幕時間軸。此非 GPU VRAM 峰值或辨識準確率驗收。首次 3600 秒 GPU 工作產出 SRT，但字幕時間軸檢查失敗（exit 1，chunk 363b16）；原始錯誤段落未保留。已修正分段時間碼裁切及毫秒級重疊檢查，重新測試中；HTTP 仍預設 CPU。
 
 本機轉錄單元測試 16/16 通過，資源 smoke 腳本編譯與 diff 檢查成功。完整 P0 尚未驗收。
 
-本輪完整回歸（2026-11-28）：npm ci（42 套件、0 已知漏洞）、Node 35/35、JS 語法及 diff 檢查通過；Python unittest discover 共 36 項，35 通過、1 項跳過，程序退出碼 0（chunk fdcf42）。完整 GPU 測試尚在執行。
+本輪完整回歸（2026-11-28）：npm ci（42 套件、0 已知漏洞）、Node 35/35、JS 語法及 diff 檢查通過；Python unittest discover 共 36 項，35 通過、1 項跳過，程序退出碼 0（chunk fdcf42）。當時 GPU 測試尚在執行。
+
+2026-11-28：Windows 真 Whisper small CPU 視訊 smoke（`tools/real_whisper_video_smoke.py`，合成中文語音與 FFmpeg 合成畫面），MP4 解碼 480256 樣本、WebM 480000 樣本；各 12 段字幕，末段 29.18 秒，程序退出碼 0（chunk b17443）。此為正式工作程序的短視訊驗收；網頁視訊及長視訊仍待驗收。
+
+2026-11-28：時間軸修正後完整回歸：npm ci 安裝 42 套件、0 已知漏洞（Tesseract.js install-script 警告仍存在）；Node 35/35、Python 37 通過及 1 POSIX 跳過、JS 語法及 diff 檢查成功，退出碼 0（chunk 6190a1）。

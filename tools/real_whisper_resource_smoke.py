@@ -141,9 +141,12 @@ def validate_timeline(target, duration):
                             target.read_text(encoding='utf-8'), re.MULTILINE)
     previous = 0
     windows = set()
-    for start_text, end_text in timestamps:
+    for index, (start_text, end_text) in enumerate(timestamps, 1):
         start, end = seconds(start_text), seconds(end_text)
-        assert previous <= start < end <= duration + 0.1, 'Invalid or overlapping cue'
+        assert previous <= start < end <= duration + 0.1, (
+            f'Invalid or overlapping cue {index}: previous={previous:.3f}, '
+            f'start={start:.3f}, end={end:.3f}, duration={duration}'
+        )
         previous = end
         windows.add(int(start // 120))
     assert windows == set(range((duration + 119) // 120)), 'Missing speech window'

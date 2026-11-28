@@ -355,6 +355,31 @@ class TranscriptionTests(unittest.TestCase):
         self.assertEqual(model.chunks, [[0, 1, 2, 3], [4, 5, 6, 7], [8]])
         self.assertEqual([(s.start, s.end) for s in segments], [(0, .5), (2, 2.5), (4, 4.5)])
 
+    def test_chunk_boundary_and_overlapping_model_cues(self):
+        from transcribe_local import transcribe_segments
+
+        class FakeModel:
+            def transcribe(self, chunk, **kwargs):
+                return iter([
+                    SimpleNamespace(start=0, end=1, text='first'),
+                    SimpleNamespace(start=.9, end=2.1, text='second'),
+                ]), None
+
+        with patch('transcribe_local.SAMPLE_RATE', 2), patch('transcribe_local.INFERENCE_CHUNK_SECONDS', 2):
+            segments = list(transcribe_segments(FakeModel(), [0] * 8, 'zh'))
+        self.assertEqual([(s.start, s.end) for s in segments],
+                         [(0, 1), (1, 2), (2, 3), (3, 4)])
+        self.assertEqual(render_srt(segments).count('-->'), 4)
+
+    def test_srt_rejects_overlap_and_submillisecond_cues(self):
+        for segments in (
+            [SimpleNamespace(start=0, end=1, text='a'),
+             SimpleNamespace(start=.9, end=2, text='b')],
+            [SimpleNamespace(start=0, end=.0001, text='a')],
+        ):
+            with self.subTest(segments=segments), self.assertRaises(ValueError):
+                render_srt(segments)
+
     def test_model_result_writes_only_explicit_srt(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / 'lesson.wav'
@@ -370,7 +395,7 @@ class TranscriptionTests(unittest.TestCase):
                     return iter([SimpleNamespace(start=0, end=1, text='合成語音')]), None
 
             fake_module.WhisperModel = FakeWhisper
-            with patch.dict(sys.modules, {'faster_whisper': fake_module}), patch('transcribe_local.decode_bounded', return_value=[0]):
+            with patch.dict(sys.modules, {'faster_whisper': fake_module}), patch('transcribe_local.decode_bounded', return_value=[0] * 16000):
                 self.assertEqual(transcribe(source, dest), dest.resolve())
             self.assertIn('合成語音', dest.read_text(encoding='utf-8'))
             self.assertEqual(source.read_bytes(), b'RIFF0000WAVE')

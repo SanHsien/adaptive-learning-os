@@ -172,15 +172,21 @@ def timestamp(seconds):
 def render_srt(segments):
     blocks = []
     chars = size = 0
+    previous_end = 0
     for segment in segments:
         start, end, words = segment.start, segment.end, segment.text.strip()
         if not words:
             continue
         if end <= start:
             raise ValueError('辨識結果時間碼無效')
+        start_text, end_text = timestamp(start), timestamp(end)
+        start_ms, end_ms = round(start * 1000), round(end * 1000)
+        if start_ms < previous_end or end_ms <= start_ms:
+            raise ValueError('辨識結果字幕時間碼重疊或精度不足')
+        previous_end = end_ms
         # Avoid allowing model text to mimic extra SRT cues.
         words = ' '.join(words.split())
-        block = f'{len(blocks) + 1}\n{timestamp(start)} --> {timestamp(end)}\n{words}'
+        block = f'{len(blocks) + 1}\n{start_text} --> {end_text}\n{words}'
         separator = 2 if blocks else 1  # Include the final newline.
         chars += len(block) + separator
         size += len(block.encode('utf-8')) + separator
@@ -199,10 +205,17 @@ def transcribe_segments(model, audio, language):
         chunk = audio[offset:offset + chunk_samples]
         segments, _ = model.transcribe(chunk, language=language, vad_filter=True)
         offset_seconds = offset / SAMPLE_RATE
+        chunk_end = (offset + len(chunk)) / SAMPLE_RATE
+        previous_end = offset_seconds
         for segment in segments:
-            yield SimpleNamespace(start=segment.start + offset_seconds,
-                                  end=segment.end + offset_seconds,
-                                  text=segment.text)
+            if not segment.text.strip():
+                continue
+            start = max(previous_end, offset_seconds + segment.start)
+            end = min(chunk_end, offset_seconds + segment.end)
+            if round(end * 1000) <= round(start * 1000):
+                raise ValueError('辨識結果超出音訊區間或字幕時間碼無效')
+            yield SimpleNamespace(start=start, end=end, text=segment.text)
+            previous_end = end
 
 
 def transcribe(input_path, output_path, model_name='small', language='zh', device='cpu'):
