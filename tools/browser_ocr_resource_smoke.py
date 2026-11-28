@@ -14,7 +14,7 @@ from playwright.sync_api import sync_playwright
 from browser_smoke import local_server
 
 
-def process_memory(pids):
+def process_memory(processes):
     """Sample Windows browser processes reported by CDP; units are bytes."""
     class Counters(ctypes.Structure):
         _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
@@ -29,7 +29,9 @@ def process_memory(pids):
     psapi = ctypes.WinDLL("psapi", use_last_error=True)
     psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
     working = private = counted = 0
-    for pid in pids:
+    details = []
+    for process in processes:
+        pid = process['id']
         handle = kernel.OpenProcess(0x1000, False, pid)
         if not handle:
             continue
@@ -40,12 +42,15 @@ def process_memory(pids):
                 working += counters.WorkingSetSize
                 private += counters.PrivateUsage
                 counted += 1
+                details.append({"pid": pid, "type": process["type"],
+                                "working_set_mib": round(counters.WorkingSetSize / 1048576, 2),
+                                "private_mib": round(counters.PrivateUsage / 1048576, 2)})
         finally:
             kernel.CloseHandle(handle)
     assert counted, "No browser process memory samples"
     return {"working_set_mib": round(working / 1048576, 2),
             "private_mib": round(private / 1048576, 2), "processes": counted,
-            "reported_processes": len(pids)}
+            "reported_processes": len(processes), "by_process": details}
 
 
 def run(cycles):
@@ -70,8 +75,8 @@ def run(cycles):
             targets.on('Target.targetDestroyed', lambda event: destroyed_targets.add(event['targetId']))
             targets.send('Target.setDiscoverTargets', {'discover': True})
             def memory_sample():
-                pids = [p['id'] for p in targets.send('SystemInfo.getProcessInfo')['processInfo']]
-                return process_memory(pids) if os.name == 'nt' else None
+                processes = targets.send('SystemInfo.getProcessInfo')['processInfo']
+                return process_memory(processes) if os.name == 'nt' else None
             def worker_count():
                 return sum(t['type'] == 'worker' for t in targets.send('Target.getTargets')['targetInfos'])
             page.evaluate("""async () => {
@@ -104,6 +109,7 @@ def run(cycles):
                 };
             }""")
             baseline = worker_count()
+            print(json.dumps({"phase": "baseline", "browser_memory": memory_sample()}), flush=True)
             samples = []
             memory_samples = []
             started = time.monotonic()
@@ -138,6 +144,7 @@ def run(cycles):
                               'destroyed_workers': len(created_workers & destroyed_targets),
                               'browser_memory': memory_samples}), flush=True)
             context.close()
+            print(json.dumps({"phase": "context_closed", "browser_memory": memory_sample()}), flush=True)
         finally:
             browser.close()
         print('Browser closed', flush=True)
