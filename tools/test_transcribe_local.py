@@ -175,8 +175,17 @@ class TranscriptionTests(unittest.TestCase):
             with wave.open(str(truncated), 'wb') as wav:
                 wav.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
                 wav.writeframes(b'\x00\x00' * 32000)
-            truncated.write_bytes(truncated.read_bytes()[:32044])
+            original_wav = truncated.read_bytes()
+            truncated.write_bytes(original_wav[:32044])
+            aligned = Path(folder) / 'aligned-truncation.wav'
+            aligned.write_bytes(original_wav[:44 + 4096])
+            with av.open(str(aligned)) as container:
+                packets = list(container.demux(container.streams.audio[0]))
+                self.assertFalse(any(packet.is_corrupt for packet in packets))
             with patch.dict(sys.modules, {'faster_whisper': fake_module}):
+                with self.assertRaisesRegex(ValueError, 'WAV.*截斷'):
+                    transcribe(aligned, aligned.with_suffix('.srt'))
+                self.assertFalse(aligned.with_suffix('.srt').exists())
                 for source in (video_path, corrupt, truncated):
                     with self.subTest(source=source.name):
                         dest = source.with_suffix('.srt')

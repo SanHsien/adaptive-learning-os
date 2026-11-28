@@ -23,6 +23,13 @@ def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
     import av
     import numpy as np
 
+    # RIFF/WAVE can end on a complete PCM packet without a corruption flag.
+    with Path(source).open('rb') as media:
+        header = media.read(12)
+        if header[:4] == b'RIFF' and header[8:12] == b'WAVE':
+            declared_size = int.from_bytes(header[4:8], 'little') + 8
+            if declared_size > media.seek(0, io.SEEK_END):
+                raise ValueError('WAV 宣告長度超過實際檔案，音訊已截斷')
     resampler = av.AudioResampler(format='s16', layout='mono', rate=SAMPLE_RATE)
     limit = max_seconds * SAMPLE_RATE * 2
     with io.BytesIO() as buffer, av.open(str(source), mode='r') as container:
