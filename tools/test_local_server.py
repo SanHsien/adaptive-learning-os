@@ -446,6 +446,33 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(folders), 1)
         self.assertFalse(folders[0].exists())
 
+    def test_real_worker_timeout_cleanup_and_recovery(self):
+        captured = {}
+
+        def launch(command):
+            captured['folder'] = Path(command[command.index('--output') + 1]).parent
+            process = launch_worker([sys.executable, '-c', 'import time; time.sleep(60)'])
+            captured['process'] = process
+            communicate = process.communicate
+            process.communicate = lambda timeout=None: communicate(timeout=.1 if timeout == 1800 else timeout)
+            return process
+
+        try:
+            with patch('local_server.launch_worker', side_effect=launch):
+                status, body = self.request('POST', '/api/transcribe', WAV, self.auth())
+            self.assertEqual(status, 504)
+            self.assertEqual(json.loads(body)['error'], '轉錄逾時，已終止')
+            self.wait_for_available_slot()
+            self.assertIsNotNone(captured['process'].poll())
+            self.assertFalse(captured['folder'].exists())
+            self.assertFalse(self.server.recovery_required)
+            self.assertEqual(self.request('POST', '/api/transcribe', b'bad', self.auth())[0], 415)
+        finally:
+            process = captured.get('process')
+            if process is not None:
+                stop_process_tree(process)
+                process.communicate(timeout=10)
+
     def test_timeout_recovery_wait_is_bounded(self):
         from unittest.mock import Mock
         process = Mock(spec=['communicate', 'kill', 'returncode'])
