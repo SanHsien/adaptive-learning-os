@@ -185,3 +185,5 @@ RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推
 2026-11-28：OCR 取消修正後，npm ci 安裝 42 套件、0 已知漏洞；Node 35/35、JS 語法及 diff 檢查通過（chunk 3e8b1b）。Chromium Headless Shell 149.0.7827.55 完整瀏覽器 E2E 通過，含掃描 PDF 跨科及跨人取消、教材隔離，並正常退出（chunk 2f0305，exit 0）。長時間循環與實際資源回收仍待驗收。
 
 2026-11-28：新增 `tools/browser_ocr_resource_smoke.py`，Chromium Headless Shell 149.0.7827.55 以合成圖片執行 100 輪（100 次成功、100 次取消），47.28 秒，200 個 Worker 建立及銷毀事件均觀測到，每輪無殘留 Worker，無外部請求，瀏覽器正常退出（chunk 7c3094，exit 0）。每輪 GC 後頁面 JS heap 2.04→2.23 MiB；CDP 回報的 4 個 Windows 瀏覽器程序 Working Set 合計 253.29→267.03 MiB，Private Bytes 109.21→125.83 MiB。記憶體仍有緩升，不能證明長期穩定；上述為輪次結束取樣，非活動期間峰值或全程序樹退出確認。大型掃描及長時間測試待驗收。
+
+2026-11-28：同版 Chromium Headless Shell 149.0.7827.55 真 OCR 1000 輪（成功與取消各 1000 次），485.37 秒，2000 個 Worker 建立及銷毀、每輪無殘留、無外部請求，瀏覽器關閉，exit 0（chunk c39e76）。原始紀錄首末輪（chunk 58887b）：GC 後頁面 JS heap 2.04→2.26 MiB；CDP 回報 4 個程序 Working Set 255.62→367.35 MiB、Private Bytes 112.55→225.00 MiB。Worker 生命週期通過，瀏覽器記憶體持續增加，尚未定位原因或證明長期穩定；未量測活動峰值及全程序樹退出。
