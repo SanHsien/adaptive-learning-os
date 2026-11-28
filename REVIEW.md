@@ -9,3 +9,5 @@
 Fix commit: 190127601c137da02b0169a459f1e82a1ee3f7bd; date 2026-11-28. Follow-up #11 fix commit: a574d3e881f260f252b8b917fcfdd9698cf0bd1f; date 2026-11-28.
 
 Corrupt audio rejection fix commit: 332f2669f880b200f46ce299edb7409a8cc3805b; date 2026-11-28.
+
+RIFF truncation fix commit: f7831bb0e9e9177151253669dab804ee4a68353f; date 2026-11-28.
