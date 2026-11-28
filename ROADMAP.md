@@ -21,7 +21,7 @@
 | --- | --- | --- |
 | **P0：多格式教材匯入** | 功能已實作；CPU 批次候選與 GPU 60 分鐘真模型通過；正式 HTTP 預設 CPU 仍待改善，批次辨識品質、長視訊與跨硬體負載待驗收。 | `docs/ACCEPTANCE.md` |
 | 影音完整性與資源治理 | 五種格式已加入截斷檢查；無可信總長度的截斷仍可能漏判。POSIX 整組 CPU／記憶體限制、程序群組逃逸、宿主異常退出及實際終止失敗清理仍待驗收。 | `SECURITY.md`、`docs/ACCEPTANCE.md` |
-| OCR 與瀏覽器穩定性 | 跨科及跨學習者取消已驗證；修正終止後辨識 Promise 懸置，Chromium E2E 正常退出；1000 輪真 OCR（2000 個 Worker 全數銷毀）通過；瀏覽器 Private Bytes 112.55→225.00 MiB，程序別及控制組診斷顯示增量主要位於 renderer，Tesseract 初始化／終止已有顯著增量，長期穩定性待證、大型掃描 20 頁成功及 21 頁拒絕通過；主動釋放 Canvas 與 PDF 頁面資源後，20 頁大型掃描連續三輪成功；更長循環、活動峰值與 Chrome 關閉相容性待驗收。 | `docs/ACCEPTANCE.md` |
+| OCR 與瀏覽器穩定性 | 跨科及跨學習者取消已驗證；修正終止後辨識 Promise 懸置，Chromium E2E 正常退出；1000 輪真 OCR（2000 個 Worker 全數銷毀）通過；瀏覽器 Private Bytes 112.55→225.00 MiB，程序別及控制組診斷顯示增量主要位於 renderer，Tesseract 初始化／終止已有顯著增量，長期穩定性待證、大型掃描 20 頁成功及 21 頁拒絕通過；主動釋放 Canvas 與 PDF 頁面資源後，20 頁大型掃描連續 10 輪成功（200 頁），Private Bytes 活動取樣峰值 331.04 MiB、GC 後 136.55–146.03 MiB；長期穩定性與 Chrome 關閉相容性待驗收。 | `docs/ACCEPTANCE.md` |
 | 教材來源與版本模型 | 本機版完成；仍需更多瀏覽器格式測試。 | `docs/ARCHITECTURE.md` |
 | CI 穩定性 | 最新本機 Node 36 項、Python 38 項通過、1 項 POSIX 跳過；安裝、JS 語法及 diff 檢查通過。766391d 遠端 CI／CodeQL 通過。 | `docs/ACCEPTANCE.md`、GitHub Actions |
 
