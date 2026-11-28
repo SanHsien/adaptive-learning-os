@@ -7,7 +7,7 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Asia/Taipei"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "github-actions"]
     groups:
       github-actions:
@@ -20,7 +20,7 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Asia/Taipei"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "npm"]
     groups:
       npm:
