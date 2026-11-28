@@ -81,5 +81,5 @@ OCR 資源診斷：`python -u tools/browser_ocr_resource_smoke.py --cycles 100`�
 
 短視訊真模型驗收可執行 `.venv/Scripts/python.exe -u tools/real_whisper_video_smoke.py`（Windows SAPI、專案 Whisper small 與本機 FFmpeg，需支援 MPEG4/AAC、VP8/Opus 編碼）。以合成中文語音和畫面測試 MP4/WebM，檢查解碼樣本與字幕時間軸。
 
-CPU 批次轉錄目前為選用功能：啟動服務時加上 `--batched`（`python tools/local_server.py --batched`）。短合成語音已通過真實瀏覽器流程驗收；長影音 HTTP 與多樣教材辨識品質仍在驗收中。一般推論維持預設。
-長音訊 HTTP 驗收可執行 `.venv/Scripts/python.exe -u tools/real_whisper_http_smoke.py --duration-seconds 3600`（Windows 合成語音）；檢查正式服務回傳的字幕時間軸及工作槽釋放。
+CPU 批次轉錄目前為選用功能：啟動服務時加上 `--batched`（`python tools/local_server.py --batched`）。短合成語音已通過真實瀏覽器流程驗收；M4A、MP4、WebM 的 60 分鐘合成語音 HTTP 測試已通過；多樣教材辨識品質與長影音瀏覽器流程仍在驗收中。一般推論維持預設。
+長影音 HTTP 驗收可執行 `.venv/Scripts/python.exe -u tools/real_whisper_http_smoke.py --duration-seconds 3600`（Windows 合成語音；加 `--format mp4` 或 `--format webm` 需本機 FFmpeg）；檢查正式服務回傳的字幕時間軸及工作槽釋放。
