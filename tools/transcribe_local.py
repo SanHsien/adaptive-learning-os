@@ -3,12 +3,14 @@
 import argparse
 import io
 from pathlib import Path
+from types import SimpleNamespace
 
 
 SUPPORTED = {'.mp3', '.wav', '.m4a', '.mp4', '.webm'}
 MAX_BYTES = 100 * 1024 * 1024
 MAX_AUDIO_SECONDS = 3600
 SAMPLE_RATE = 16000
+INFERENCE_CHUNK_SECONDS = 120
 MAX_SRT_CHARS = 100000
 MAX_SRT_BYTES = 400000
 LIMIT_EXIT_CODE = 75
@@ -190,6 +192,19 @@ def render_srt(segments):
     return '\n\n'.join(blocks) + '\n'
 
 
+def transcribe_segments(model, audio, language):
+    """Limit feature extraction memory while preserving the global timeline."""
+    chunk_samples = INFERENCE_CHUNK_SECONDS * SAMPLE_RATE
+    for offset in range(0, len(audio), chunk_samples):
+        chunk = audio[offset:offset + chunk_samples]
+        segments, _ = model.transcribe(chunk, language=language, vad_filter=True)
+        offset_seconds = offset / SAMPLE_RATE
+        for segment in segments:
+            yield SimpleNamespace(start=segment.start + offset_seconds,
+                                  end=segment.end + offset_seconds,
+                                  text=segment.text)
+
+
 def transcribe(input_path, output_path, model_name='small', language='zh', device='cpu'):
     source = Path(input_path).resolve(strict=True)
     target = Path(output_path).resolve()
@@ -207,8 +222,7 @@ def transcribe(input_path, output_path, model_name='small', language='zh', devic
         raise RuntimeError('請先安裝本機語音辨識套件：python -m pip install faster-whisper') from exc
     audio = decode_bounded(source)
     model = WhisperModel(model_name, device=device, compute_type='int8')
-    segments, _ = model.transcribe(audio, language=language, vad_filter=True)
-    result = render_srt(segments)
+    result = render_srt(transcribe_segments(model, audio, language))
     # Exclusive create prevents overwriting a file created concurrently.
     with target.open('x', encoding='utf-8', newline='\n') as handle:
         handle.write(result)

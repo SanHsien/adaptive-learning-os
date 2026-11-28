@@ -9,7 +9,7 @@ POSIX 本機轉錄使用獨立程序群組，正常結束、取消及逾時會�
 
 多音軌影音目前只轉錄第一條音軌，請先確認所需語言位於第一音軌。
 
-本機 Whisper 轉錄限制為每次最多 60 分鐘實際解碼音訊（16 kHz mono PCM 樣本累計）、SRT 最多 100000 字元及 400000 bytes；超限停止處理，網頁回傳 HTTP 413 並提示分段轉錄。
+本機 Whisper 以最多 120 秒音訊分段推論並保留全域字幕時間軸；固定分段可能切斷語句，須人工校對。轉錄限制為每次最多 60 分鐘實際解碼音訊（16 kHz mono PCM 樣本累計）、SRT 最多 100000 字元及 400000 bytes；超限停止處理，網頁回傳 HTTP 413 並提示分段轉錄。
 
 Windows 一鍵轉錄工作使用 Job Object 回收根程序與衍生程序，已以合成 Python 父子程序驗證根程序提前退出後的清理。真 Whisper 受控異常退出已驗收；Windows Job 限制整組 committed memory 4 GiB 、8 個同時存活程序與累計 14400 秒 user-mode CPU 時間，另有獨立 1800 秒 wall-clock 逾時；長期運作與跨硬體驗收仍列於 ROADMAP。
 
@@ -55,7 +55,7 @@ Windows 轉錄工作以暫停狀態建立子程序，將其加入 Job Object 後
 
 本機服務會在上傳連線閒置 15 秒後結束該請求，服務關閉時嘗試中止當前轉錄。Windows 已以合成語音通過真正 Whisper Small 的網頁轉錄、人工校對儲存、跨學習者隔離 E2E（`python tools/browser_real_transcription_smoke.py`，需獨立 `.venv` 和 Windows SAPI）。另可選用 `python -u tools/real_whisper_inference_cancel_smoke.py --cycles 3` 連續三輪驗證真模型首次解碼後取消、暫存清理及任務槽恢復；預設 `--cycles 1`。工具自 Whisper 子程序啟動後開始每 0.1 秒取樣，輸出取消前及全窗程序樹 Working Set 取樣峰值、累積 CPU、程序數、啟動至首次解碼及解碼至清理的耗時。取樣值可能遺漏瞬間峰值，孤兒程序及長期運行穩定性仍待驗收。
 
-Windows 可額外執行 `python -u tools/real_whisper_resource_smoke.py --duration-seconds 90`，以約 90 秒本機合成中文語音量測實際 Whisper CPU 時間及整個 Python 程序樹的記憶體峰值。可選擇 30 至 180 秒，預設為 45 秒。需有專案 `.venv` 的 faster-whisper small 模型與 Windows SAPI；輸出是單次測試數據，其中 Working Set 取樣值與 Job 的 committed memory 硬上限不同。原始合成音訊及字幕於測試結束後刪除。
+Windows 可額外執行 `.venv/Scripts/python.exe -u tools/real_whisper_resource_smoke.py --duration-seconds 90`，以指定長度的本機合成中文語音量測實際 Whisper CPU 時間及整個 Python 程序樹的記憶體峰值。可選擇 30 至 3600 秒，預設為 45 秒，轉錄 wall-clock 上限為 1800 秒。CPU 完整一小時真模型測試曾因記憶體配置失敗，分段後仍逾 1800 秒；RTX 3060 的 30 秒 GPU 工作程序測試已通過，完整一小時 GPU 驗收仍待結果。可使用 `--device cuda` 選擇測試裝置，需自行在專案虛擬環境準備 CUDA 12 cuBLAS 與 cuDNN 9；HTTP 服務仍預設 CPU。需有專案 `.venv` 的 faster-whisper small 模型與 Windows SAPI；輸出是單次測試數據，其中 Working Set 取樣值與 Job 的 committed memory 硬上限不同。原始合成音訊及字幕於測試結束後刪除。
 
 ### 本機影音自動轉錄（選用）
 

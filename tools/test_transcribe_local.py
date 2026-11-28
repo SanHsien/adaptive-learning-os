@@ -337,6 +337,24 @@ class TranscriptionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 transcribe(source, Path(folder) / 'lesson.txt')
 
+
+    def test_chunked_inference_offsets_and_bounds(self):
+        from transcribe_local import transcribe_segments
+
+        class FakeModel:
+            def __init__(self):
+                self.chunks = []
+
+            def transcribe(self, chunk, **kwargs):
+                self.chunks.append(list(chunk))
+                return iter([SimpleNamespace(start=0, end=0.5, text='speech')]), None
+
+        model = FakeModel()
+        with patch('transcribe_local.SAMPLE_RATE', 2), patch('transcribe_local.INFERENCE_CHUNK_SECONDS', 2):
+            segments = list(transcribe_segments(model, list(range(9)), 'zh'))
+        self.assertEqual(model.chunks, [[0, 1, 2, 3], [4, 5, 6, 7], [8]])
+        self.assertEqual([(s.start, s.end) for s in segments], [(0, .5), (2, 2.5), (4, 4.5)])
+
     def test_model_result_writes_only_explicit_srt(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / 'lesson.wav'
@@ -352,7 +370,7 @@ class TranscriptionTests(unittest.TestCase):
                     return iter([SimpleNamespace(start=0, end=1, text='合成語音')]), None
 
             fake_module.WhisperModel = FakeWhisper
-            with patch.dict(sys.modules, {'faster_whisper': fake_module}), patch('transcribe_local.decode_bounded', return_value=object()):
+            with patch.dict(sys.modules, {'faster_whisper': fake_module}), patch('transcribe_local.decode_bounded', return_value=[0]):
                 self.assertEqual(transcribe(source, dest), dest.resolve())
             self.assertIn('合成語音', dest.read_text(encoding='utf-8'))
             self.assertEqual(source.read_bytes(), b'RIFF0000WAVE')

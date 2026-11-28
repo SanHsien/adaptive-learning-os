@@ -164,3 +164,14 @@ CI `45505627385` 揭露單次真 OS 子程序取消整合測試的 Handler `fina
 2026-11-25：Windows `test_orphan_descendant_is_killed_after_parent_exit` 使用真實 Python 父程序產生持續執行的子程序，父程序正常退出後關閉 Job handle，驗證子程序在五秒內消失。此為不載入 Whisper 的回歸測試，並未消除程序建立與 Job 指派之間的競爭窗口。
 
 本次更新 Node 33/33、Python 17/17 與工具編譯檢查通過。另執行一次 `real_whisper_inference_cancel_smoke.py --cycles 1`，因 100 秒內未收到首次解碼訊號而失敗；尚無法確認是模型執行時間變異或 Job Object 整合造成。必須待真模型複測通過才可將此版列為完整的 Whisper 取消驗收。
+
+
+## 2026-11-28 長音訊與 GPU 資源驗收
+
+CPU 一小時合成音訊：未分段推論時 NumPy 配置 220 MiB float32 陣列失敗；改為 120 秒分段後仍超過 1800 秒 wall-clock 限制，未產生完整 SRT。已知三個程序 PID 均消失，暫存資料夾清理未另行核對。固定分段可能切斷語句或重置語境。
+
+RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推論缺少 cublas64_12.dll；在專案 .venv 安裝 cuBLAS 12.4.5.8、cuDNN 9.1.1.17、NVRTC 12.9.86，僅設定測試程序 PATH。30 秒真模型直接測試 11.72 秒、626 bytes SRT；正式 launch_worker 測試 9.75 秒、12 段字幕、最後字幕 29.18 秒、取樣程序樹 Working Set 峰值 769.6 MiB、最多 2 個程序，退出碼 0。已檢查實際音訊樣本數及字幕時間軸。此非 GPU VRAM 峰值或辨識準確率驗收。完整 3600 秒 GPU 工作已啟動，待最終結果；HTTP 仍預設 CPU。
+
+本機轉錄單元測試 16/16 通過，資源 smoke 腳本編譯與 diff 檢查成功。完整 P0 尚未驗收。
+
+本輪完整回歸（2026-11-28）：npm ci（42 套件、0 已知漏洞）、Node 35/35、JS 語法及 diff 檢查通過；Python unittest discover 共 36 項，35 通過、1 項跳過，程序退出碼 0（chunk fdcf42）。完整 GPU 測試尚在執行。

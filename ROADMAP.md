@@ -19,11 +19,11 @@
 
 | 工作 | 狀態與剩餘驗收 | 證據 |
 | --- | --- | --- |
-| **P0：多格式教材匯入** | 功能已實作；完整 60 分鐘真 Whisper 推論、真模型視訊及跨硬體負載仍待驗收。 | `docs/ACCEPTANCE.md` |
+| **P0：多格式教材匯入** | 功能已實作；CPU 60 分鐘逾時，GPU 30 秒通過、60 分鐘測試進行中；真模型視訊及跨硬體負載待驗收。 | `docs/ACCEPTANCE.md` |
 | 影音完整性與資源治理 | 五種格式已加入截斷檢查；無可信總長度的截斷仍可能漏判。POSIX 整組 CPU／記憶體限制、程序群組逃逸、宿主異常退出及實際終止失敗清理仍待驗收。 | `SECURITY.md`、`docs/ACCEPTANCE.md` |
 | OCR 與瀏覽器穩定性 | 跨科及跨學習者取消已驗證；長時間循環、記憶體資源及 Chrome 關閉相容性仍待驗收。 | `docs/ACCEPTANCE.md` |
 | 教材來源與版本模型 | 本機版完成；仍需更多瀏覽器格式測試。 | `docs/ARCHITECTURE.md` |
-| CI 穩定性 | 最新本機 Node 35 項、Python 轉錄 15 項通過；HTTP 首次全跑 WinError 10053，獨立重跑 19 項通過、1 項 POSIX 跳過。最新遠端 CI／CodeQL 待確認。 | `docs/ACCEPTANCE.md`、GitHub Actions |
+| CI 穩定性 | 最新本機 Node 35 項、Python 35 項通過、1 項 POSIX 跳過；安裝、JS 語法及 diff 檢查通過。最新遠端 CI／CodeQL 待確認。 | `docs/ACCEPTANCE.md`、GitHub Actions |
 
 **資料界線：** IndexedDB 僅提供邏輯隔離，尚無帳號級授權、加密或跨裝置同步。公開原始碼不代表授權公開部署；測試僅使用合成資料。
 

@@ -7,6 +7,7 @@ import argparse
 import ctypes
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -15,6 +16,7 @@ from pathlib import Path
 
 from local_server import ROOT, launch_worker, stop_process_tree
 from real_whisper_inference_cancel_smoke import synthetic_audio
+from transcribe_local import MAX_AUDIO_SECONDS, MAX_BYTES, SAMPLE_RATE, decode_bounded
 
 
 class ProcessMemoryCounters(ctypes.Structure):
@@ -103,9 +105,56 @@ def sample_process_tree(root_pid, cpu_by_pid):
     return memory, count
 
 
+def long_audio(target, duration_seconds):
+    """Encode exact-duration repeated synthetic speech as lossless M4A."""
+    import av
+    import numpy as np
+
+    short = target.with_suffix('.wav')
+    synthetic_audio(short, 30)
+    speech = decode_bounded(short)
+    pcm = (speech * 32768).astype(np.int16)
+    total = duration_seconds * SAMPLE_RATE
+    with av.open(str(target), 'w') as container:
+        stream = container.add_stream('alac', rate=SAMPLE_RATE)
+        stream.layout = 'mono'
+        for offset in range(0, total, SAMPLE_RATE):
+            indices = np.arange(offset, min(total, offset + SAMPLE_RATE)) % len(pcm)
+            frame = av.AudioFrame.from_ndarray(
+                pcm[indices].reshape(1, -1), format='s16', layout='mono')
+            frame.sample_rate = SAMPLE_RATE
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    short.unlink()
+    if not 0 < target.stat().st_size <= MAX_BYTES:
+        raise ValueError('Synthetic audio exceeds the production file limit')
+
+
+def validate_timeline(target, duration):
+    def seconds(value):
+        h, m, rest = value.split(':')
+        return int(h) * 3600 + int(m) * 60 + float(rest.replace(',', '.'))
+
+    timestamps = re.findall(r'^(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})$',
+                            target.read_text(encoding='utf-8'), re.MULTILINE)
+    previous = 0
+    windows = set()
+    for start_text, end_text in timestamps:
+        start, end = seconds(start_text), seconds(end_text)
+        assert previous <= start < end <= duration + 0.1, 'Invalid or overlapping cue'
+        previous = end
+        windows.add(int(start // 120))
+    assert windows == set(range((duration + 119) // 120)), 'Missing speech window'
+    assert previous >= duration - 15, 'Transcript ends too early'
+    return len(timestamps), previous
+
+
 def main():
     parser = argparse.ArgumentParser(description='Sample real Whisper process-tree resources')
-    parser.add_argument('--duration-seconds', type=int, default=45, choices=range(30, 181), metavar='30..180')
+    parser.add_argument('--duration-seconds', type=int, default=45, choices=range(30, MAX_AUDIO_SECONDS + 1), metavar='30..3600')
+    parser.add_argument('--device', choices=('cpu', 'cuda'), default='cpu')
     options = parser.parse_args()
     if os.name != 'nt':
         raise RuntimeError('Windows process counters required')
@@ -113,11 +162,15 @@ def main():
     if not interpreter.is_file():
         raise RuntimeError('Project .venv with faster-whisper is required')
     with tempfile.TemporaryDirectory(prefix='adaptive-whisper-resource-') as directory:
-        source = Path(directory) / 'synthetic.wav'
+        source = Path(directory) / 'synthetic.m4a'
         target = Path(directory) / 'output.srt'
-        synthetic_audio(source, options.duration_seconds)
+        long_audio(source, options.duration_seconds)
+        assert len(decode_bounded(source)) == options.duration_seconds * SAMPLE_RATE
+        if options.device == 'cuda':
+            dll_dirs = list((ROOT / '.venv' / 'Lib' / 'site-packages' / 'nvidia').glob('*/bin'))
+            os.environ['PATH'] = os.pathsep.join([*(str(p) for p in dll_dirs), os.environ['PATH']])
         command = [str(interpreter), str(ROOT / 'tools' / 'transcribe_local.py'),
-                   str(source), '--output', str(target), '--model', 'small']
+                   str(source), '--output', str(target), '--model', 'small', '--device', options.device]
         process = launch_worker(command)
         start = time.monotonic()
         peak_bytes = 0
@@ -126,7 +179,7 @@ def main():
         samples = 0
         try:
             while process.poll() is None:
-                if time.monotonic() - start > max(180, options.duration_seconds * 4):
+                if time.monotonic() - start > 1800:
                     raise TimeoutError('Whisper transcription exceeded the bounded runtime')
                 memory_bytes, count = sample_process_tree(process.pid, cpu_by_pid)
                 peak_bytes = max(peak_bytes, memory_bytes)
@@ -137,9 +190,12 @@ def main():
             sample_process_tree(process.pid, cpu_by_pid)
             assert process.returncode == 0, f'Whisper exited with {process.returncode}: {error[-400:]!r}'
             assert target.is_file() and target.stat().st_size > 0, 'No SRT produced'
+            cues, last_cue = validate_timeline(target, options.duration_seconds)
             print(json.dumps({
                 'result': 'PASS', 'workload': 'synthetic repeated Chinese speech',
                 'requested_audio_seconds': options.duration_seconds,
+                'device': options.device, 'cue_count': cues, 'last_cue_seconds': last_cue,
+                'source_bytes': source.stat().st_size,
                 'wall_seconds': round(time.monotonic() - start, 2),
                 'sampled_process_tree_cpu_seconds': round(sum(cpu_by_pid.values()), 2),
                 'sampled_peak_tree_working_set_mib': round(peak_bytes / 1048576, 1),
