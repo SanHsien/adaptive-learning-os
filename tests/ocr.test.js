@@ -172,3 +172,37 @@ test('連續取消辨識後可以重新執行成功，且每個 Worker 只終止
     }
   }
 });
+
+test('OCR releases canvas after asynchronous encoding on success and failure', async () => {
+  const previous = {createImageBitmap: globalThis.createImageBitmap, document: globalThis.document, Tesseract: globalThis.Tesseract};
+  try {
+    for (const succeeds of [true, false]) {
+      let closed = false;
+      let finishEncoding;
+      const canvas = {width: 0, height: 0, getContext: () => ({fillRect() {}, drawImage() {}}), toBlob: callback => { finishEncoding = callback; }};
+      globalThis.createImageBitmap = async () => ({width: 100, height: 50, close() { closed = true; }});
+      globalThis.document = {createElement: () => canvas};
+      globalThis.Tesseract = {createWorker: async () => {
+        assert.equal(closed, true);
+        assert.equal(canvas.width, 0);
+        assert.equal(canvas.height, 0);
+        return {recognize: async () => ({data: {text: 'success'}}), terminate: async () => {}};
+      }};
+      const result = recognizeImage(new Blob(['image']));
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(canvas.width, 100);
+      assert.equal(canvas.height, 50);
+      finishEncoding(succeeds ? new Blob(['image']) : null);
+      if (succeeds) assert.equal(await result, 'success');
+      else await assert.rejects(result);
+      assert.equal(closed, true);
+      assert.equal(canvas.width, 0);
+      assert.equal(canvas.height, 0);
+    }
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  }
+});

@@ -11,9 +11,10 @@ export function checkImageDimensions(width, height) {
 
 async function downsample(file) {
   const bitmap = await createImageBitmap(file);
+  let canvas;
   try {
     const scale = checkImageDimensions(bitmap.width, bitmap.height);
-    const canvas = document.createElement('canvas');
+    canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const ctx = canvas.getContext('2d', {alpha: false});
@@ -21,8 +22,14 @@ async function downsample(file) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('圖片預處理失敗')), 'image/png'));
-  } finally { bitmap.close(); }
+    return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('圖片預處理失敗')), 'image/png'));
+  } finally {
+    bitmap.close();
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }
 }
 
 export async function recognizeImage(file, signal) {

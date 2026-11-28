@@ -193,3 +193,6 @@ RTX 3060（12 GiB）、CTranslate2 4.9.1、faster-whisper 1.2.1：首次 GPU 推
 2026-11-28：同版 Chromium 每組獨立啟動，控制組各 100 輪、每輪 2 次操作（chunk 677b73、af19d8，exit 0）：空白、Canvas、原生 Worker 的 Private Bytes 增量分別為 0.89、3.15、8.67 MiB，renderer 增量分別為 0.70、3.15、5.77 MiB。獨立 Tesseract 每組 100 次操作（chunk 6bb260、97129e，exit 0）：僅初始化與終止、辨識成功、啟動辨識即終止，Private Bytes 增量分別為 22.71、25.14、21.81 MiB，renderer 增量分別為 12.62、15.16、12.68 MiB；每次均確認無殘留 Worker、無外部請求，瀏覽器關閉。取消組未等待辨識內部進度，故不是完整應用取消驗收。初始化組已出現大部分增量，顯示初始化／終止路徑值得優先調查；不同組操作數、合成圖與量測節奏有差異，不能直接相減歸因或判定洩漏。
 
 2026-11-28：Chromium Headless Shell 149 大型合成掃描 PDF 網頁驗收（chunk d704ee，exit 0）。每頁 2480×3508 pixels，20 頁 2913184 bytes，8.87 秒完成，逐頁非空且頁碼順序正確，人工儲存後來源保留；21 頁 3059030 bytes，9.37 秒依 OCR 上限拒絕，原教材及來源未變更。兩次結束均無殘留 Worker、無外部請求且瀏覽器正常退出。CDP 四個程序結束取樣 Private Bytes 750.95／763.87 MiB，renderer 670.25／680.30 MiB，未量測活動峰值或多輪大型掃描的穩定性。
+
+
+2026-11-28：OCR Canvas 在非同步影像編碼完成或失敗後歸零，Bitmap 關閉；PDF 每頁結束呼叫 cleanup，取消時等待 render Promise 結束後釋放 Canvas。npm ci、Node 36/36、JS 語法及 diff 檢查通過（4e5055），完整 Chromium E2E 通過（43d2e5）。大型合成 PDF（20 頁、2480×3508 pixels、3142694 bytes）在同一 Chromium context 連續三輪匯入、逐頁非空、頁序正確、來源儲存、無殘留 Worker 或外部請求，正常關閉（c3ec26，exit 0）。耗時 8.66/8.90/9.10 秒；GC 後四個 CDP 程序 Private Bytes 139.88/142.96/143.09 MiB，Working Set 804.85/799.70/799.05 MiB。首次測試等待條件未綁定檔名而失敗（774404），改為等待當輪預覽及已儲存來源後三輪成功。舊版測試合成檔大小不同，不能直接量化改善幅度；活動峰值與更長期穩定性未驗收。
