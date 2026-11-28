@@ -1,5 +1,7 @@
 # 安全與隱私界線
 
+2026-11-28：新增 MP4/M4A ISO BMFF 頂層區塊長度檢查，支援 32-bit、64-bit 延伸及合法延伸至 EOF 的區塊。合成 faststart AAC 於完整封包邊界截斷時，拒絕於模型建立前且不產生 SRT；正常檔案可解碼。Windows Python 31 項通過、1 項 POSIX 跳過，Node 35 項通過，npm ci、語法及 diff 檢查通過。前版 6546794 CI/CodeQL 成功且未解決警示 0 項（前輪查證）。頂層長度一致或 EOF 區塊仍可能存在無法偵測的截斷；MP3/WebM 與完整一小時真模型推論待驗收。
+
 2026-11-28：新增 RIFF/WAVE 宣告長度檢查。合成 PCM WAV 在完整封包邊界截斷時，PyAV 19.0.2 原先無損毀標記且仍回傳部分音訊；修正後於模型建立前拒絕，未產生 SRT。Windows PyAV 16.1.0（與 CI 固定版本相同）Python 29 項通過、1 項 POSIX 跳過；Node 35 項通過、語法檢查通過。前版 c876d59 CI 與 CodeQL 均成功、未解決警示 0 項。其他容器的無標記截斷及完整一小時真模型推論仍待驗收。
 
 2026-11-28: Reject the first audio stream if PyAV flags a corrupt packet or frame before model construction or SRT creation. A truncated synthetic PCM WAV regression and existing compressed audio, multiple audio track, and one-hour decode boundary tests passed. Windows Python 29 passed / 1 POSIX skip; Node 35 passed; JS syntax and diff checks passed. Silent truncation without decoder corruption flags and full-hour real-model inference remain unverified.

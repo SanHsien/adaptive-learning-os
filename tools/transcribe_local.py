@@ -18,6 +18,32 @@ class TranscriptionLimitError(ValueError):
     pass
 
 
+def validate_iso_boxes(media):
+    """Check top-level ISO BMFF box bounds without reading payloads."""
+    end = media.seek(0, io.SEEK_END)
+    offset = 0
+    while offset < end:
+        media.seek(offset)
+        header = media.read(8)
+        if len(header) != 8:
+            raise ValueError('MP4/M4A 區塊標頭截斷')
+        size = int.from_bytes(header[:4], 'big')
+        minimum = 8
+        if size == 1:
+            extended = media.read(8)
+            if len(extended) != 8:
+                raise ValueError('MP4/M4A 延伸區塊標頭截斷')
+            size = int.from_bytes(extended, 'big')
+            minimum += 8
+        elif size == 0:
+            size = end - offset
+        if header[4:8] == b'uuid':
+            minimum += 16
+        if size < minimum or size > end - offset:
+            raise ValueError('MP4/M4A 區塊長度無效或檔案截斷')
+        offset += size
+
+
 def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
     """Decode mono PCM incrementally; enforce actual samples, not metadata."""
     import av
@@ -30,6 +56,8 @@ def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
             declared_size = int.from_bytes(header[4:8], 'little') + 8
             if declared_size > media.seek(0, io.SEEK_END):
                 raise ValueError('WAV 宣告長度超過實際檔案，音訊已截斷')
+        if header[4:8] == b'ftyp':
+            validate_iso_boxes(media)
     resampler = av.AudioResampler(format='s16', layout='mono', rate=SAMPLE_RATE)
     limit = max_seconds * SAMPLE_RATE * 2
     with io.BytesIO() as buffer, av.open(str(source), mode='r') as container:

@@ -72,6 +72,55 @@ class TranscriptionTests(unittest.TestCase):
                     with self.assertRaises(TranscriptionLimitError):
                         decode_bounded(path, max_seconds=1)
 
+    def test_iso_box_sizes(self):
+        import io
+        from transcribe_local import validate_iso_boxes
+        for data in (b'\x00\x00\x00\x08free',
+                     b'\x00\x00\x00\x01free' + (16).to_bytes(8, 'big'),
+                     b'\x00\x00\x00\x00mdatpayload'):
+            validate_iso_boxes(io.BytesIO(data))
+        for data in (b'123', b'\x00\x00\x00\x01free',
+                     b'\x00\x00\x00\x01free' + (0).to_bytes(8, 'big'),
+                     b'\x00\x00\x00\x09free', b'\x00\x00\x00\x08uuid'):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                validate_iso_boxes(io.BytesIO(data))
+
+    def test_truncated_faststart_media_rejected_before_model(self):
+        import importlib.util
+        if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
+            self.skipTest('Optional PyAV and NumPy dependencies')
+        import av
+        import numpy as np
+        from unittest.mock import Mock
+        from transcribe_local import decode_bounded
+        fake_module = ModuleType('faster_whisper')
+        fake_module.WhisperModel = Mock()
+        with tempfile.TemporaryDirectory() as folder:
+            for suffix in ('m4a', 'mp4'):
+                with self.subTest(format=suffix):
+                    source = Path(folder) / f'synthetic.{suffix}'
+                    with av.open(str(source), 'w', options={'movflags': 'faststart'}) as container:
+                        stream = container.add_stream('aac', rate=48000)
+                        stream.layout = 'mono'
+                        for index in range(20):
+                            frame = av.AudioFrame.from_ndarray(
+                                np.full((1, 4800), index * 100, dtype=np.int16), format='s16', layout='mono')
+                            frame.sample_rate = 48000
+                            for packet in stream.encode(frame):
+                                container.mux(packet)
+                        for packet in stream.encode(None):
+                            container.mux(packet)
+                    self.assertGreaterEqual(len(decode_bounded(source)), 30000)
+                    with av.open(str(source)) as container:
+                        ends = [packet.pos + packet.size for packet in container.demux(container.streams.audio[0]) if packet.size]
+                    source.write_bytes(source.read_bytes()[:ends[10]])
+                    dest = source.with_suffix('.srt')
+                    with patch.dict(sys.modules, {'faster_whisper': fake_module}):
+                        with self.assertRaisesRegex(ValueError, 'MP4/M4A.*截斷'):
+                            transcribe(source, dest)
+                    self.assertFalse(dest.exists())
+        fake_module.WhisperModel.assert_not_called()
+
     def test_actual_hour_decode_boundary(self):
         import importlib.util
         if not importlib.util.find_spec('av') or not importlib.util.find_spec('numpy'):
