@@ -17,3 +17,5 @@ Corrupt audio rejection fix commit: 332f2669f880b200f46ce299edb7409a8cc3805b; da
 RIFF truncation fix commit: f7831bb0e9e9177151253669dab804ee4a68353f; date 2026-11-28.
 
 ISO BMFF truncation fix commit: 7bc82b1f714028287a81f62d116e186d6b0b6d95; date 2026-11-28.
+
+WebM truncation fix commit: 26991658df82edd8542a7cac3d8b06a54f17a041; date 2026-11-28.
