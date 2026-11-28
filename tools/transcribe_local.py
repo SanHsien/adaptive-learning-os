@@ -75,6 +75,45 @@ def validate_webm_bounds(media):
         media.seek(size, io.SEEK_CUR)
 
 
+def validate_mp3_declared_length(media):
+    """Reject a first-frame Xing/Info byte count exceeding the remaining file."""
+    end = media.seek(0, io.SEEK_END)
+    media.seek(0)
+    tag = media.read(10)
+    offset = 0
+    if tag[:3] == b'ID3':
+        if len(tag) != 10 or any(byte & 0x80 for byte in tag[6:10]):
+            raise ValueError('MP3 ID3 標頭無效或截斷')
+        offset = 10 + sum(byte << (7 * (3 - index)) for index, byte in enumerate(tag[6:10]))
+        if tag[3] == 4 and tag[5] & 0x10:
+            offset += 10
+        if offset > end:
+            raise ValueError('MP3 ID3 宣告長度超過實際檔案，音訊已截斷')
+    media.seek(offset)
+    frame = media.read(4)
+    if len(frame) != 4 or frame[0] != 0xff or frame[1] & 0xe0 != 0xe0:
+        return
+    version = (frame[1] >> 3) & 3
+    layer = (frame[1] >> 1) & 3
+    if version == 1 or layer != 1:
+        return
+    # Only inspect the conventional first-frame metadata position.
+    mono = frame[3] >> 6 == 3
+    side_info = (17 if mono else 32) if version == 3 else (9 if mono else 17)
+    crc = 0 if frame[1] & 1 else 2
+    media.seek(offset + 4 + crc + side_info)
+    marker = media.read(8)
+    if len(marker) != 8 or marker[:4] not in (b'Xing', b'Info'):
+        return
+    flags = int.from_bytes(marker[4:], 'big')
+    if flags & 1:
+        media.read(4)  # Optional frame count precedes byte count.
+    if flags & 2:
+        count = media.read(4)
+        if len(count) != 4 or int.from_bytes(count, 'big') > end - offset:
+            raise ValueError('MP3 宣告長度超過實際檔案，音訊已截斷')
+
+
 def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
     """Decode mono PCM incrementally; enforce actual samples, not metadata."""
     import av
@@ -91,6 +130,8 @@ def decode_bounded(source, max_seconds=MAX_AUDIO_SECONDS):
             validate_iso_boxes(media)
         if header[:4] == b'\x1a\x45\xdf\xa3':
             validate_webm_bounds(media)
+        if Path(source).suffix.lower() == '.mp3':
+            validate_mp3_declared_length(media)
     resampler = av.AudioResampler(format='s16', layout='mono', rate=SAMPLE_RATE)
     limit = max_seconds * SAMPLE_RATE * 2
     with io.BytesIO() as buffer, av.open(str(source), mode='r') as container:

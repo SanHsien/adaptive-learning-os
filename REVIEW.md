@@ -1,5 +1,7 @@
 # Security review
 
+2026-11-28：新增 MP3 首個 MPEG Layer III 音框 Xing/Info 宣告位元組數檢查及 ID3 長度檢查。合成 MP3 含 ID3 與無 ID3 的正常檔均可解碼，完整封包邊界截斷於模型建立前拒絕且無 SRT；無 Xing/Info 的正常檔仍可解碼。無宣告總長度或宣告不準確的 MP3 仍可能漏判，未宣稱完整性保證。Node 35 項通過、npm ci 與語法檢查通過；Python 轉錄 15 項通過，HTTP 套件首次全跑有 WinError 10053，獨立重跑 19 項通過、1 項 POSIX 跳過。
+
 2026-11-28：新增 WebM EBML 頂層元素宣告長度檢查，保留合法未知長度 Segment。實測 PyAV 16.1.0 合成 Opus WebM 截半原可回傳 16536 樣本，修正後於模型建立前拒絕且無 SRT。正常 WebM 解碼及未知長度標頭測試通過。MP3 截半原可回傳 15760 樣本，尚待處理；未知長度 Segment 的內部截斷仍可能無法辨識。Python 33 項通過、1 項 POSIX 跳過，Node 35 項通過，npm ci、語法及 diff 檢查通過。前版 69e51bd CI/CodeQL 成功，未解決警示 0 項。
 
 2026-11-28：新增 MP4/M4A ISO BMFF 頂層區塊長度檢查，支援 32-bit、64-bit 延伸及合法延伸至 EOF 的區塊。合成 faststart AAC 於完整封包邊界截斷時，拒絕於模型建立前且不產生 SRT；正常檔案可解碼。Windows Python 31 項通過、1 項 POSIX 跳過，Node 35 項通過，npm ci、語法及 diff 檢查通過。前版 6546794 CI/CodeQL 成功且未解決警示 0 項（前輪查證）。頂層長度一致或 EOF 區塊仍可能存在無法偵測的截斷；MP3/WebM 與完整一小時真模型推論待驗收。
