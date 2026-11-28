@@ -8,6 +8,8 @@ import os
 import subprocess
 import tempfile
 import threading
+import time
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -34,13 +36,31 @@ def make_synthetic_audio(target):
     assert target.is_file() and target.stat().st_size > 44, 'no synthesized WAV'
 
 
-def run(*, batched=False):
+def run(*, batched=False, duration=30, media_format='wav'):
+    if media_format == 'wav' and duration != 30:
+        raise ValueError('Use m4a, mp4 or webm for long media')
     if os.name != 'nt' or not WHISPER_PYTHON.is_file():
         raise RuntimeError('Windows and project .venv Whisper Python are required')
     with tempfile.TemporaryDirectory(prefix='adaptive-real-smoke-') as folder:
         audio = Path(folder) / 'synthetic.wav'
-        make_synthetic_audio(audio)
-        server = LocalServer(('127.0.0.1', 0), Handler, batched=batched)
+        if media_format == 'wav':
+            make_synthetic_audio(audio)
+        else:
+            audio = audio.with_suffix('.' + media_format)
+            subprocess.run([str(WHISPER_PYTHON), '-c',
+                            'from real_whisper_http_smoke import make_media; import sys; '
+                            'make_media(sys.argv[1], int(sys.argv[2]), sys.argv[3])',
+                            folder, str(duration), media_format],
+                           cwd=ROOT / 'tools', check=True, timeout=420)
+        captured = {}
+
+        class CapturingHandler(Handler):
+            def _json(self, status, value):
+                if status == 200 and 'srt' in value:
+                    captured['srt'] = value['srt']
+                return super()._json(status, value)
+
+        server = LocalServer(('127.0.0.1', 0), CapturingHandler, batched=batched)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
@@ -63,8 +83,19 @@ def run(*, batched=False):
                         page.locator('#addSubject button').click()
                         page.locator('#subject').select_option(label='數學')
                         page.locator('#materialFile').set_input_files(str(audio))
-                        page.locator('#runTranscription').click()
-                        page.get_by_text('本機轉錄完成', exact=False).wait_for()
+                        started = time.monotonic()
+                        with page.expect_response(lambda response: response.url.endswith('/api/transcribe') and response.request.method == 'POST', timeout=1850000) as result:
+                            page.locator('#runTranscription').click()
+                        response = result.value
+                        assert response.status == 200, response.status
+                        page.get_by_text('本機轉錄完成', exact=False).wait_for(timeout=30000)
+                        assert 'srt' in captured, 'missing server transcript'
+                        if media_format != 'wav':
+                            target = Path(folder) / 'output.srt'
+                            target.write_text(captured['srt'], encoding='utf-8')
+                            subprocess.run([str(WHISPER_PYTHON), '-c',
+                                            'from real_whisper_resource_smoke import validate_timeline; import sys; from pathlib import Path; print(validate_timeline(Path(sys.argv[1]), int(sys.argv[2])))',
+                                            str(target), str(duration)], cwd=ROOT / 'tools', check=True, timeout=30)
                         recognized = page.locator('#material').input_value()
                         assert recognized.strip(), 'empty Whisper transcript'
                         page.locator('#material').fill('已校對：二加三等於五')
@@ -83,7 +114,7 @@ def run(*, batched=False):
                         assert not errors, errors
                         assert server.active is None, 'transcription task not released'
                         print('PASS: real Whisper browser flow, corrected material, learner isolation', flush=True)
-                        print(f'Recognized characters: {len(recognized)}', flush=True)
+                        print(json.dumps({'format': media_format, 'source_bytes': audio.stat().st_size, 'recognized_characters': len(recognized), 'wall_seconds': round(time.monotonic() - started, 2)}), flush=True)
                     finally:
                         browser.close()
         finally:
@@ -95,4 +126,7 @@ def run(*, batched=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batched', action='store_true')
-    run(batched=parser.parse_args().batched)
+    parser.add_argument('--duration-seconds', type=int, default=30, choices=range(30, 3601), metavar='30..3600')
+    parser.add_argument('--format', choices=('wav', 'm4a', 'mp4', 'webm'), default='wav')
+    args = parser.parse_args()
+    run(batched=args.batched, duration=args.duration_seconds, media_format=args.format)

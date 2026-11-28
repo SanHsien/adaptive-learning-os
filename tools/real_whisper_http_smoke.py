@@ -14,25 +14,30 @@ from real_whisper_resource_smoke import long_audio, validate_timeline
 from transcribe_local import MAX_AUDIO_SECONDS, MAX_BYTES, SAMPLE_RATE, decode_bounded
 
 
+def make_media(folder, duration, media_format):
+    source = Path(folder) / 'synthetic.m4a'
+    long_audio(source, duration)
+    if media_format != 'm4a':
+        video = source.with_suffix('.' + media_format)
+        video_codec, audio_codec = ('mpeg4', 'copy') if media_format == 'mp4' else ('libvpx', 'libopus')
+        frame_rate = 1 if media_format == 'mp4' else 10
+        # Lossless MP4 avoids AAC encoder padding at the exact duration limit.
+        subprocess.run([
+            'ffmpeg', '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
+            f'color=c=blue:s=64x64:r={frame_rate}:d={duration}', '-i', str(source),
+            '-c:v', video_codec, '-c:a', audio_codec,
+            *(['-b:a', '48k'] if media_format == 'webm' else []),
+            '-shortest', str(video),
+        ], check=True, timeout=300, capture_output=True)
+        source = video
+        assert 0 < source.stat().st_size <= MAX_BYTES
+        assert len(decode_bounded(source)) == duration * SAMPLE_RATE
+    return source
+
+
 def run(duration, media_format='m4a'):
     with tempfile.TemporaryDirectory(prefix='adaptive-http-smoke-') as folder:
-        source = Path(folder) / 'synthetic.m4a'
-        long_audio(source, duration)
-        if media_format != 'm4a':
-            video = source.with_suffix('.' + media_format)
-            video_codec, audio_codec = ('mpeg4', 'copy') if media_format == 'mp4' else ('libvpx', 'libopus')
-            frame_rate = 1 if media_format == 'mp4' else 10
-            # Lossless MP4 avoids AAC encoder padding at the exact duration limit.
-            subprocess.run([
-                'ffmpeg', '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
-                f'color=c=blue:s=64x64:r={frame_rate}:d={duration}', '-i', str(source),
-                '-c:v', video_codec, '-c:a', audio_codec,
-                *(['-b:a', '48k'] if media_format == 'webm' else []),
-                '-shortest', str(video),
-            ], check=True, timeout=300, capture_output=True)
-            source = video
-            assert 0 < source.stat().st_size <= MAX_BYTES
-            assert len(decode_bounded(source)) == duration * SAMPLE_RATE
+        source = make_media(folder, duration, media_format)
         with LocalServer(('127.0.0.1', 0), Handler, batched=True) as server:
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
