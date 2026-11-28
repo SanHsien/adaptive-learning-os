@@ -46,11 +46,13 @@ export async function recognizeImage(file, signal) {
     }
     return terminationPromise;
   };
-  const onAbort = () => { void terminate().catch(() => {}); };
+  // Native Worker termination may leave the recognition Promise pending.
+  let onAbort;
+  const aborted = new Promise(resolve => { onAbort = () => resolve(undefined); });
   signal?.addEventListener('abort', onAbort, {once: true});
   try {
     signal?.throwIfAborted();
-    const result = await worker.recognize(processed);
+    const result = await Promise.race([worker.recognize(processed), aborted]);
     signal?.throwIfAborted();
     const content = String(result.data?.text || '').trim();
     if (!content) throw new Error('OCR 未辨識到文字，原教材未變更；請改用人工輸入');

@@ -18,7 +18,6 @@ test('OCR 取消時會停止 Worker，且不可回傳已取消結果', async () 
   };
   let started;
   const startedPromise = new Promise(resolve => { started = resolve; });
-  let failRecognize;
   let terminated = 0;
   globalThis.createImageBitmap = async () => ({width: 100, height: 100, close() {}});
   globalThis.document = {
@@ -30,8 +29,8 @@ test('OCR 取消時會停止 Worker，且不可回傳已取消結果', async () 
   };
   globalThis.Tesseract = {
     createWorker: async () => ({
-      recognize: () => { started(); return new Promise((_, reject) => { failRecognize = reject; }); },
-      terminate: async () => { terminated++; failRecognize?.(new Error('worker stopped')); }
+      recognize: () => { started(); return new Promise(() => {}); },
+      terminate: async () => { terminated++; }
     })
   };
   try {
